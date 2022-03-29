@@ -1,0 +1,685 @@
+#include "tlv320aic3204.h"
+#include "main.h"
+#include "usbd_comp.h"
+
+extern USBD_HandleTypeDef hUsbDeviceFS;
+
+I2S_HandleTypeDef hi2s2;
+DMA_HandleTypeDef hdma_i2s2_ext_rx;
+DMA_HandleTypeDef hdma_spi2_tx;
+
+SPI_HandleTypeDef hspi1;
+
+static void writeRegister(uint8_t addr, uint8_t value);
+static uint8_t readRegister(uint8_t addr);
+
+/**
+ * @brief
+ * Make codec hardware reset function
+ */
+static void tlv320aic3204_hardwareReset(void);
+
+/**
+ * @brief
+ * Codec I2S interface init function
+ * @params
+ * dir - interface direction: 0 - out, 1 - in
+ */
+static void tlv320aic3204_InterfaceInit(uint8_t dir);
+
+/**
+ * @brief
+ * Codec playback init function
+ */
+static void tlv320aic3204_PlaybackInit(void);
+
+/**
+ * @brief
+ * Codec recording init function
+ */
+static void tlv320aic3204_MicInit(void);
+
+/**
+ * @brief
+ * Codec de-initialization function
+ */
+static void tlv320aic3204_DeInit(void);
+
+/**
+ * @brief
+ * Select codec outputs
+ * @params
+ * outputs - select output channel (headphones or loudspeakers)
+ */
+static void tlv320aic3204_selectOutputs(OutputsType outputs);
+
+/**
+ * @brief
+ * Select codec input
+ * @params
+ * input - selected input channel (IN1 or IN3)
+ */
+static void tlv320aic3204_selectInput(InputsType input);
+
+/**
+ * @brief
+ * Set codec's output mute state
+ * @params
+ * is_enable - (0 - not muted, 1 - muted)
+ */
+static void tlv320aic3204_muteControl(uint8_t is_enabled);
+
+/**
+ * @brief
+ * Set codec's output driver gain
+ * @params
+ * gain - value from -6 dB to 29 dB
+ */
+static void tlv320aic3204_setOutDriverGain(int8_t gain);
+
+/**
+ * @brief
+ * Set codec's DAC output volume
+ * @params
+ * gain - value from -63,5 dB to 24 dB in discrets with 0,5 dB
+ */
+static void tlv320aic3204_setDigitalDACVolume(int8_t volume);
+
+/**
+ * @brief
+ * Set internal codec's LDO state
+ * @params
+ * is_enabled - LDO state (0 - power down, 1 - power up)
+ */
+static void tlv320aic3204_LDO_PowerCtrl(uint8_t is_enabled);
+
+/**
+ * @brief
+ * DAC test function: beep 1 kHz 5 sec
+ */
+//static void tlv320aic3204_BeepTest(void);
+
+/**
+ * @brief
+ * Write data to the codec by I2S interface
+ * @params
+ * buffer - data samples
+ * size - buffer length
+ */
+static void tlv320aic3204_WriteData(uint16_t* buffer, uint16_t size);
+
+/**
+ * @brief
+ * Read data from the codec by I2S interface
+ * @params
+ * buffer - data samples
+ * size - buffer length
+ */
+static void tlv320aic3204_ReadData(uint16_t* buffer, uint16_t size);
+
+/**
+ * @brief
+ * Stop I2S DMA function
+ */
+static void tlv320aic3204_Stop(void);
+
+/**
+ * @brief
+ * Resume I2S DMA function
+ */
+static void tlv320aic3204_Resume(void);
+
+/**
+ * @brief
+ * Get I2S DMA remaining size for transmit
+ */
+static uint16_t tlv320aic3204_getOutRemainingDataSize(void);
+
+/**
+ * @brief
+ * Get I2S DMA remaining size for receive
+ */
+static uint16_t tlv320aic3204_getInRemainingDataSize(void);
+
+/**
+ * @brief
+ * Set I2S clock frequency deviation for synchronizing with USB SOF
+ * @params
+ * dev_type - 0 - nominal freq, 1 - lower freq (47,83 kHz), 2 - higher freq (48,17 kHz)
+ */
+static void tlv320aic3204_setFreqDeviation(uint8_t dev_type);
+
+/**
+ * @brief
+ * Get codec's mute state
+ * @return
+ * 0 - isn't muted, 1 - muted
+ */
+static uint8_t tlv320aic3204_IsOutMuted(void);
+
+AudioCodecDrv tlv320aic3204_driver =
+{
+		tlv320aic3204_InterfaceInit,
+		tlv320aic3204_PlaybackInit,
+		tlv320aic3204_MicInit,
+		tlv320aic3204_DeInit,
+		tlv320aic3204_hardwareReset,
+		tlv320aic3204_selectOutputs,
+		tlv320aic3204_selectInput,
+		tlv320aic3204_muteControl,
+		tlv320aic3204_setOutDriverGain,
+		tlv320aic3204_setDigitalDACVolume,
+		tlv320aic3204_WriteData,
+		tlv320aic3204_ReadData,
+		tlv320aic3204_Stop,
+		tlv320aic3204_Resume,
+		tlv320aic3204_getOutRemainingDataSize,
+		tlv320aic3204_getInRemainingDataSize,
+		tlv320aic3204_setFreqDeviation,
+		tlv320aic3204_IsOutMuted,
+};
+
+AudioCodecDrv *tlv320aic3204_drv = &tlv320aic3204_driver;
+OutputsType currentOutputs = LOUDSPEAKERS;
+InputsType currentInput = MIC1;
+uint8_t interface_dir = 0; // output
+
+static void writeRegister(uint8_t addr, uint8_t value)
+{
+	uint8_t data[2] = {0};
+	data[0] = addr<<1;
+	data[1] = value;
+	SPI1_SS_GPIO_Port->BSRR = SPI1_SS_Pin<<16;
+	HAL_SPI_Transmit(&hspi1, data, 2, 1000);
+	SPI1_SS_GPIO_Port->BSRR = SPI1_SS_Pin;
+}
+
+static uint8_t readRegister(uint8_t addr)
+{
+	uint8_t txData[2] = {0};
+	uint8_t rxData[2] = {0};
+
+	txData[0] = (addr<<1) | 0x01; // set R/W bit
+	SPI1_SS_GPIO_Port->BSRR = SPI1_SS_Pin<<16;
+	HAL_SPI_TransmitReceive(&hspi1, txData, rxData, 2, 1000);
+	SPI1_SS_GPIO_Port->BSRR = SPI1_SS_Pin;
+	return rxData[1];
+}
+
+static void tlv320aic3204_hardwareReset(void)
+{
+	HAL_Delay(2);
+//	make hardware reset (pin PB10)
+	CODEC_RST_GPIO_Port->BSRR = CODEC_RST_Pin<<16;
+	HAL_Delay(1);
+	CODEC_RST_GPIO_Port->BSRR = CODEC_RST_Pin;
+
+//	wait analog and PLL startup
+	HAL_Delay(2);
+}
+
+static void tlv320aic3204_InterfaceInit(uint8_t dir)
+{
+// codec control interface init
+	  /* SPI1 parameter configuration*/
+	  hspi1.Instance = SPI1;
+	  hspi1.Init.Mode = SPI_MODE_MASTER;
+	  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+	  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+	  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+	  hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
+	  hspi1.Init.NSS = SPI_NSS_SOFT;
+	  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+	  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+	  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+	  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+	  hspi1.Init.CRCPolynomial = 10;
+	  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+	  {
+		Error_Handler();
+	  }
+	
+	/* DMA controller clock enable */
+	  __HAL_RCC_DMA1_CLK_ENABLE();
+// codec I2S interface init
+	  hi2s2.Instance = SPI2;
+	  hi2s2.Init.Mode = I2S_MODE_MASTER_TX;
+	  hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
+	  hi2s2.Init.DataFormat = I2S_DATAFORMAT_16B;
+	  hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE;
+	  hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_48K;
+	  hi2s2.Init.CPOL = I2S_CPOL_LOW;
+	  hi2s2.Init.ClockSource = I2S_CLOCK_PLL;
+	  hi2s2.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_ENABLE;
+	  if (HAL_I2S_Init(&hi2s2) != HAL_OK)
+	  {
+	    Error_Handler();
+	  }
+
+	/* DMA interrupt init */
+	  /* DMA1_Stream3_IRQn interrupt configuration */
+	  HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 0, 0);
+	  HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
+	  /* DMA1_Stream4_IRQn interrupt configuration */
+	  HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 0, 0);
+	  HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
+}
+
+static void tlv320aic3204_PlaybackInit(void)
+{
+// codec DAC init
+	//select Page 0
+	writeRegister(PAGE_SELECT_REGISTER, 0);
+	// make software reset
+	writeRegister(0x01, 0x01);
+	// Power up the NDAC divider with value 1
+	writeRegister(0x0B, 0x81);
+	// Power up the MDAC divider with value 2
+	writeRegister(0x0C, 0x82);
+	// Program the OSR of DAC to 128
+	writeRegister(0x0D, 0x00);
+	writeRegister(0x0E, 0x80);
+	// Set the word length of Audio Interface to 16bits PTM_P4
+	writeRegister(0x1B, 0x00);
+	// Set the DAC Mode to PRB_P8
+	writeRegister(0x3C, 0x08);
+	// Select Page 1
+	writeRegister(PAGE_SELECT_REGISTER, 0x01);
+	// Disable Internal Crude AVdd in presence of external AVdd supply or before
+	//powering up internal AVdd LDO
+	writeRegister(0x01, 0x08);
+	// Enable Master Analog Power Control
+	writeRegister(0x02, 0x01);
+	// Set the REF charging time to 40ms
+	writeRegister(0x7B, 0x01);
+	// HP soft stepping settings for optimal pop performance at power up
+	// Rpop used is 6k with N = 6 and soft step = 20usec. This should work with 47uF coupling
+	// capacitor. Can try N=5,6 or 7 time constants as well. Trade-off delay vs “pop” sound.
+	writeRegister(0x14, 0x25);
+	// Set the Input Common Mode to 0.9V and Output Common Mode for Headphone to
+	// Input Common Mode
+	writeRegister(0x0A, 0x00);
+	// Route Left DAC to LOL
+	writeRegister(0x0E, 0x08);
+	// Route Right DAC to LOR
+	writeRegister(0x0F, 0x08);
+	// Set the DAC PTM mode to PTM_P3/4
+	writeRegister(0x03, 0x00);
+	writeRegister(0x04, 0x00);
+	// Set the HPL gain to 0dB
+	writeRegister(0x10, 0x00);
+	// Set the HPR gain to 0dB
+	writeRegister(0x11, 0x00);
+	// Set the LOL gain to 0dB
+	writeRegister(0x12, 0x00);
+	// Set the LOR gain to 0dB
+	writeRegister(0x13, 0x00);
+	// Power up LOL and LOR drivers
+	writeRegister(0x09, 0x0C);
+	// Wait for 2.5 sec for soft stepping to take effect
+	// Else read Page 1, Register 63d, D(7:6). When = “11” soft-stepping is complete
+	// Select Page 0
+	writeRegister(PAGE_SELECT_REGISTER, 0);
+	// Power up the Left and Right DAC Channels with route the Left Audio digital data to
+	// Left Channel DAC and Right Audio digital data to Right Channel DAC, soft-step volume change enable
+	writeRegister(0x3F, 0xD5);
+	// Unmute the DAC digital volume control
+	writeRegister(0x40, 0x00);
+}
+
+static void tlv320aic3204_MicInit(void)
+{
+	//codec ADC init
+	// Initialize to Page 0
+	writeRegister(PAGE_SELECT_REGISTER, 0);
+	// make software reset
+//	writeRegister(0x01, 0x01);
+	// Power up NADC divider with value 1
+	writeRegister(0x12, 0x81);
+	// Power up MADC divider with value 2
+	writeRegister(0x13, 0x82);
+	// Program OSR for ADC to 128
+	writeRegister(0x14, 0x80);
+	// Select ADC PRB_R1
+	writeRegister(0x3B, 0x01);
+	// Select Page 1
+	writeRegister(PAGE_SELECT_REGISTER, 1);
+	// Disable Internal Crude AVdd in presence of external AVdd supply or before
+	//powering up internal AVdd LDO
+//	writeRegister(0x01, 0x08);
+//	// Enable Master Analog Power Control
+//	writeRegister(0x02, 0x01);
+//	// Set the Input Common Mode to 0.9V and Output Common Mode for Headphone to
+//	// Input Common Mode
+//	writeRegister(0x0A, 0x00);
+	// Select ADC PTM_R4
+	writeRegister(0x3D, 0x00);
+	// Set MicPGA startup delay to 3.1ms
+	writeRegister(0x47, 0x32);
+	// Set the REF charging time to 40ms
+//	writeRegister(0x7B, 0x01);
+	// Route IN1L to LEFT_P with 20K input impedance
+	writeRegister(0x34, 0x80);
+	// Route Common Mode to LEFT_M with impedance of 20K
+	writeRegister(0x36, 0x80);
+	// Route IN1R to RIGHT_P with input impedance of 20K
+	writeRegister(0x37, 0x80);
+	// Route Common Mode to RIGHT_M with impedance of 20K
+	writeRegister(0x39, 0x80);
+	// Unmute Left MICPGA, Gain selection of 6dB to make channel gain 0dB
+	// Register of 6dB with input impedance of 20K => Channel Gain of 0dB
+	writeRegister(0x3B, 0x0C);
+	// Unmute Right MICPGA, Gain selection of 6dB to make channel gain 0dB
+	// Register of 6dB with input impedance of 20K => Channel Gain of 0dB
+	writeRegister(0x3C, 0x0C);
+	// Set MICBIAS voltage 1.25 V
+	writeRegister(0x33, 0x40);
+	// Select Page 0
+	writeRegister(PAGE_SELECT_REGISTER, 0);
+	// Power up Left and Right ADC Channels
+	writeRegister(0x51, 0xC0);
+	// Unmute Left and Right ADC Digital Volume Control.
+	writeRegister(0x52, 0x00);
+}
+
+static void tlv320aic3204_DeInit(void)
+{
+	tlv320aic3204_muteControl(1); // mute channels
+	tlv320aic3204_LDO_PowerCtrl(0); // LDO power down
+	// de-init I2S2 TX interface
+	if (HAL_I2S_DeInit(&hi2s2) != HAL_OK)
+	{
+		 Error_Handler();
+	}
+	// de-init SPI1 codec control interface
+	if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+	
+	// I2S2 RX DMA interrupt
+	HAL_NVIC_DisableIRQ(DMA1_Stream3_IRQn);
+	// I2S2 TX DMA interrupt
+	HAL_NVIC_DisableIRQ(DMA1_Stream4_IRQn);
+}
+
+static void tlv320aic3204_selectOutputs(OutputsType outputs)
+{
+	if(currentOutputs != outputs)
+	{
+		// change current outputs
+		currentOutputs = outputs;
+		// enable outputs mute
+		tlv320aic3204_muteControl(1);
+		// Select Page 1
+		writeRegister(PAGE_SELECT_REGISTER, 0x01);
+		switch(outputs)
+		{
+			case HEADPHONES:
+			default:
+				// Route Left DAC to HPL
+				writeRegister(0x0C, 0x08);
+				// Route Right DAC to HPR
+				writeRegister(0x0D, 0x08);
+				// Unroute Left DAC from LOL
+				writeRegister(0x0E, 0x00);
+				// Unroute Right DAC from LOR
+				writeRegister(0x0F, 0x00);
+				// Power up HPL and HPR drivers
+				writeRegister(0x09, 0x30);
+				break;
+
+			case LOUDSPEAKERS:
+				// Route Left DAC to LOL
+				writeRegister(0x0E, 0x08);
+				// Route Right DAC to LOR
+				writeRegister(0x0F, 0x08);
+				// Unroute Left DAC from HPL
+				writeRegister(0x0C, 0x00);
+				// Unroute Left DAC from HPR
+				writeRegister(0x0D, 0x00);
+				// Power up LOL and LOR drivers
+				writeRegister(0x09, 0x0C);
+				break;
+		}
+		// disable outputs mute
+		tlv320aic3204_muteControl(0);
+		// Set out driver gain -1 dB (for preventing distortion at max volume on loudspeakers)
+		tlv320aic3204_setOutDriverGain((outputs == LOUDSPEAKERS) ? (-1) : (0));
+	}
+}
+
+static void tlv320aic3204_selectInput(InputsType input)
+{
+	uint8_t leftMic_PGA_VolCtrl = 0, rightMicPGA_VolCtrl = 0;
+	if(currentInput != input)
+	{
+		// change current outputs
+		currentInput = input;
+		// Select Page 1
+		writeRegister(PAGE_SELECT_REGISTER, 0x01);
+		// read left and right MicPGA volume control registers
+		leftMic_PGA_VolCtrl = readRegister(0x3B);
+		rightMicPGA_VolCtrl = readRegister(0x3C);
+		// enable inputs mute
+		writeRegister(0x3B, leftMic_PGA_VolCtrl|0x80);
+		writeRegister(0x3C, rightMicPGA_VolCtrl|0x80);
+		
+		switch(input)
+		{
+			case MIC1:
+			default:
+				// Route IN1L to LEFT_P with 20K input impedance
+				writeRegister(0x34, 0x80);
+				// Route IN1R to RIGHT_P with input impedance of 20K
+				writeRegister(0x37, 0x80);
+				break;
+
+			case MIC3:
+				// Route IN3L to LEFT_P with 20K input impedance
+				writeRegister(0x34, 0x08);
+				// Route IN3L to common mode
+				writeRegister(0x3A, 0x08);
+				// Route IN3R to RIGHT_P with input impedance of 20K
+				writeRegister(0x37, 0x08);
+				break;
+		}
+		// disable inputs mute
+		writeRegister(0x3B, leftMic_PGA_VolCtrl&0x7F);
+		writeRegister(0x3C, rightMicPGA_VolCtrl&0x7F);
+	}
+}
+
+static void tlv320aic3204_muteControl(uint8_t is_enabled)
+{
+	uint8_t reg_value = 0;
+
+	// check params
+	if(is_enabled > 1) return;
+	// Select Page 1
+	writeRegister(PAGE_SELECT_REGISTER, 0x01);
+
+	switch(currentOutputs)
+	{
+		case HEADPHONES:
+		default:
+			// mute HPL control
+			reg_value = readRegister(0x10) & 0xBF; // reset mute bit
+			reg_value |= (is_enabled << 6); // set value for mute bit
+			writeRegister(0x10, reg_value);
+			// mute HPR control
+			reg_value = readRegister(0x11) & 0xBF; // reset mute bit
+			reg_value |= (is_enabled << 6); // set value for mute bit
+			writeRegister(0x11, reg_value);
+			break;
+
+		case LOUDSPEAKERS:
+			// mute LOL control
+			reg_value = readRegister(0x12) & 0xBF; // reset mute bit
+			reg_value |= (is_enabled << 6); // set value for mute bit
+			writeRegister(0x12, reg_value);
+			// mute LOR control
+			reg_value = readRegister(0x13) & 0xBF; // reset mute bit
+			reg_value |= (is_enabled << 6); // set value for mute bit
+			writeRegister(0x13, reg_value);
+			break;
+	}
+}
+
+static void tlv320aic3204_setOutDriverGain(int8_t gain)
+{
+	uint8_t reg_value = 0;
+	// Select Page 1
+	writeRegister(PAGE_SELECT_REGISTER, 0x01);
+
+	//check gain limits
+	if(gain < -6) gain = -6;
+	if(gain > 29) gain = 29;
+
+	switch(currentOutputs)
+	{
+		case HEADPHONES:
+		default:
+			// gain HPL control
+			reg_value = readRegister(0x10) & 0xC0; // reset gain bits
+			reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
+			writeRegister(0x10, reg_value);
+			// gain HPR control
+			reg_value = readRegister(0x11) & 0xC0; // reset gain bits
+			reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
+			writeRegister(0x11, reg_value);
+			break;
+
+		case LOUDSPEAKERS:
+			// gain LOL control
+			reg_value = readRegister(0x12) & 0xC0; //reset gain bits
+			reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
+			writeRegister(0x12, reg_value);
+			// gain LOR control
+			reg_value = readRegister(0x13) & 0xC0; //reset gain bits
+			reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
+			writeRegister(0x13, reg_value);
+			break;
+	}
+}
+
+static void tlv320aic3204_setDigitalDACVolume(int8_t volume)
+{
+	// Select Page 0
+	writeRegister(PAGE_SELECT_REGISTER, 0x00);
+
+	//check volume limits
+	if(volume > 48) volume = 48;
+
+	// write DAC gain value for both channels
+	writeRegister(0x41, volume);
+	writeRegister(0x42, volume);
+}
+
+static void tlv320aic3204_LDO_PowerCtrl(uint8_t is_enabled)
+{
+	uint8_t reg_value = 0;
+
+	// check param
+	if(is_enabled > 1) return;
+	// Select Page 1
+	writeRegister(PAGE_SELECT_REGISTER, 0x01);
+	// read LDO control register
+	reg_value = readRegister(0x02) & 0xFE;
+	// write LDO power state
+	writeRegister(0x02, reg_value|is_enabled);
+}
+
+//static void tlv320aic3204_BeepTest(void)
+//{
+//	uint32_t sampleLength = 0x3A980; // sample duration 5 sec
+//	uint16_t freq = 1000; // freq 1 kHz
+//	// Select Page 0
+//	writeRegister(PAGE_SELECT_REGISTER, 0x00);
+//	// write sample duration
+//	writeRegister(0x49, (uint8_t)((sampleLength>>16) & 0xFF));
+//	writeRegister(0x4A, (uint8_t)((sampleLength>>8) & 0xFF));
+//	writeRegister(0x4B, (uint8_t)(sampleLength & 0xFF));
+//	// write sample frequency
+//	writeRegister(0x4C, (uint8_t)((freq>>8) & 0xFF));
+//	writeRegister(0x4D, (uint8_t)(freq & 0xFF));
+//
+//	writeRegister(0x4E, (uint8_t)((freq>>8) & 0xFF));
+//	writeRegister(0x4F, (uint8_t)(freq & 0xFF));
+//
+//	// enable beep generator and set volume -6 dB
+//	writeRegister(0x47, 0x86);
+//}
+
+static void tlv320aic3204_WriteData(uint16_t* buffer, uint16_t size)
+{
+	HAL_I2S_Transmit_DMA(&hi2s2, buffer, DMA_MAX(size));
+}
+
+static void tlv320aic3204_ReadData(uint16_t* buffer, uint16_t size)
+{
+	HAL_I2S_Receive_DMA(&hi2s2, buffer, DMA_MAX(size));
+}
+
+static void tlv320aic3204_Stop(void)
+{
+//	HAL_I2S_DMAPause(&hi2s2);
+	HAL_I2S_DMAStop(&hi2s2);
+}
+
+static void tlv320aic3204_Resume(void)
+{
+	HAL_I2S_DMAResume(&hi2s2);
+}
+
+static uint16_t tlv320aic3204_getOutRemainingDataSize(void)
+{
+	return (uint16_t)(__HAL_DMA_GET_COUNTER(hi2s2.hdmatx) & 0xFFFF);
+}
+
+static uint16_t tlv320aic3204_getInRemainingDataSize()
+{
+	return (uint16_t)(__HAL_DMA_GET_COUNTER(hi2s2.hdmarx) & 0xFFFF);
+}
+
+static void tlv320aic3204_setFreqDeviation(uint8_t dev_type)
+{
+	static volatile uint8_t dev_type_mem;
+	if(dev_type_mem != dev_type)
+	{
+		dev_type_mem = dev_type;
+		// change I2S PLL frequency
+		RCC->CR &= ~RCC_CR_PLLI2SON; // disable I2S PLL
+		switch(dev_type)
+		{
+			case 0:
+			default:
+				RCC->PLLI2SCFGR = 0x60004800; // 288/6 = 48 kHz
+				break;
+
+			case 1:
+				RCC->PLLI2SCFGR = 0x600047C0; // 287/6 = 47,83 kHz
+				break;
+
+			case 2:
+				RCC->PLLI2SCFGR = 0x60004840; // 289/6 = 48,17 kHz
+				break;
+		}
+		RCC->CR |= RCC_CR_PLLI2SON; // enable I2S PLL
+		while(!(RCC->CR & RCC_CR_PLLI2SRDY)) {} // wait I2S PLL ready
+	}
+}
+
+static uint8_t tlv320aic3204_IsOutMuted(void)
+{
+	uint8_t reg_value = 0, result = 0;
+	// Select Page 0
+	writeRegister(PAGE_SELECT_REGISTER, 0);
+	// read DAC mute state
+	reg_value = readRegister(0x40);
+	if(reg_value & 0x0C)
+		result = 1;
+	else
+		result = 0;
+	return result;
+}
