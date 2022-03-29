@@ -259,6 +259,22 @@ void OTG_FS_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+void TIM7_IRQHandler(void)
+{
+	if(TIM7->SR & TIM_SR_UIF)
+	{
+		TIM7->SR &= ~TIM_SR_UIF; // reset flag
+		TIM7->CR1 &= ~TIM_CR1_CEN;
+	}
+}
 
+void TIM6_DAC_IRQHandler(void)
+{
+	if(TIM6->SR & TIM_SR_UIF)
+	{
+		TIM6->SR &= ~TIM_SR_UIF; // reset flag
+		kbState->isScanningTimerUpdated = 1;
+	}
+}
 /* USER CODE END 1 */
 
