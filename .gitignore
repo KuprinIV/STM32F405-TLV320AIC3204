@@ -30,3 +30,5 @@ Debug
 MDK-ARM/DebugConfig
 MDK-ARM/Listings
 
+*.md
+*.txt
