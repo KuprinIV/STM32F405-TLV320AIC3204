@@ -59,8 +59,7 @@ extern USBD_COMP_ItfTypeDef USBD_COMP_fops_FS;
 /* Exported functions prototypes ---------------------------------------------*/
 uint8_t USBD_COMP_RegisterInterface (USBD_HandleTypeDef *pdev, USBD_COMP_ItfTypeDef *fops);
 uint8_t USBD_COMP_HID_SendReport_FS(uint8_t* Buf, uint16_t  Len);
-void USBD_COMP_AUDIO_UpdateOutBuffer(void);
-void USBD_COMP_AUDIO_UpdateInBuffer(void);
+void USBD_COMP_AUDIO_UpdateBuffers(void);
 
 /* Private defines -----------------------------------------------------------*/
 #define CLASS_NUM                    2U

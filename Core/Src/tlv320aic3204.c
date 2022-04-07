@@ -157,6 +157,16 @@ static void tlv320aic3204_setFreqDeviation(uint8_t dev_type);
  */
 static uint8_t tlv320aic3204_IsOutMuted(void);
 
+/**
+ * @brief
+ * Start data transfer with codec via I2S DMA full-duplex interface
+ * @params
+ * tx_data - transmit data buffer
+ * rx_data - receive data buffer
+ * size - data buffers length
+ */
+static void tlv320aic3204_StartDataTransfer(uint16_t* tx_data, uint16_t* rx_data, uint16_t size);
+
 AudioCodecDrv tlv320aic3204_driver =
 {
 		tlv320aic3204_InterfaceInit,
@@ -177,6 +187,7 @@ AudioCodecDrv tlv320aic3204_driver =
 		tlv320aic3204_getInRemainingDataSize,
 		tlv320aic3204_setFreqDeviation,
 		tlv320aic3204_IsOutMuted,
+		tlv320aic3204_StartDataTransfer,
 };
 
 AudioCodecDrv *tlv320aic3204_drv = &tlv320aic3204_driver;
@@ -393,9 +404,9 @@ static void tlv320aic3204_DeInit(void)
 	}
 	// de-init SPI1 codec control interface
 	if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
+    {
+	  Error_Handler();
+    }
 	
 	// I2S2 RX DMA interrupt
 	HAL_NVIC_DisableIRQ(DMA1_Stream3_IRQn);
@@ -623,8 +634,8 @@ static void tlv320aic3204_ReadData(uint16_t* buffer, uint16_t size)
 
 static void tlv320aic3204_Stop(void)
 {
-//	HAL_I2S_DMAPause(&hi2s2);
-	HAL_I2S_DMAStop(&hi2s2);
+	HAL_I2S_DMAPause(&hi2s2);
+//	HAL_I2S_DMAStop(&hi2s2);
 }
 
 static void tlv320aic3204_Resume(void)
@@ -682,4 +693,9 @@ static uint8_t tlv320aic3204_IsOutMuted(void)
 	else
 		result = 0;
 	return result;
+}
+
+static void tlv320aic3204_StartDataTransfer(uint16_t* tx_data, uint16_t* rx_data, uint16_t size)
+{
+	HAL_I2SEx_TransmitReceive_DMA(&hi2s2, tx_data, rx_data, size);
 }

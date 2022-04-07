@@ -783,16 +783,10 @@ uint8_t USBD_COMP_HID_SendReport_FS (uint8_t* Buf, uint16_t Len)
   return USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, Buf, Len);
 }
 
-void USBD_COMP_AUDIO_UpdateOutBuffer(void)
+void USBD_COMP_AUDIO_UpdateBuffers(void)
 {
 	switchToClass (&hUsbDeviceFS, &comp_dev[UAC]);
-	USBD_AUDIO_UpdateOutBuffer(&hUsbDeviceFS);
-}
-
-void USBD_COMP_AUDIO_UpdateInBuffer(void)
-{
-	switchToClass (&hUsbDeviceFS, &comp_dev[UAC]);
-	USBD_AUDIO_UpdateInBuffer(&hUsbDeviceFS);
+	USBD_AUDIO_UpdateBuffers(&hUsbDeviceFS);
 }
 
 /****END OF FILE****/

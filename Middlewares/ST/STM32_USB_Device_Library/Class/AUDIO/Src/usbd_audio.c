@@ -469,8 +469,8 @@ volatile uint8_t isDataReceivedFromUSB = 0;
 
 volatile uint32_t audio_in_fnsof = 0;
 
-uint16_t outDataBuffer[AUDIO_TOTAL_OUT_BUF_SIZE] = {0};
-uint16_t inDataBuffer[AUDIO_TOTAL_IN_BUF_SIZE] = {0};
+uint16_t outDataBuffer[AUDIO_TOTAL_BUF_SIZE] = {0};
+uint16_t inDataBuffer[AUDIO_TOTAL_BUF_SIZE] = {0};
 uint8_t outPacketBuffer[AUDIO_OUT_PACKET+16U] = {0};
 uint8_t inPacketBuffer[AUDIO_IN_PACKET+2U] = {0};
 
@@ -552,6 +552,8 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef* pdev, uint8_t cfgidx)
     if (((USBD_AUDIO_ItfTypeDef*)pdev->pUserData)->Init(USBD_AUDIO_FREQ, VOL_PERCENT(haudio->vol), 0U) != 0) {
       return USBD_FAIL;
     }
+    // start transmit and receive data from codec
+    tlv320aic3204_drv->StartDataTransfer(haudio->out_buffer, haudio->in_buffer, AUDIO_TOTAL_BUF_SIZE);
   }
   return USBD_OK;
 }
@@ -819,8 +821,6 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
    */
   static volatile uint32_t sof_count_in = 0;
   static volatile uint16_t in_gap = 0;
-  uint16_t out_rd_ptr_offset = 0;
-  uint16_t in_rd_ptr_offset = 0;
 
 #ifndef USE_SYNC_EP
   static volatile uint32_t sof_count_out = 0;
@@ -834,13 +834,13 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
 	uint32_t audio_out_buf_writable_size;
 
 	/* Update audio out read pointer */
-	out_rd_ptr_offset = AUDIO_TOTAL_OUT_BUF_SIZE/4 - tlv320aic3204_drv->GetOutDataRemainingSize();
+	haudio->out_rd_ptr = AUDIO_TOTAL_BUF_SIZE - tlv320aic3204_drv->GetOutDataRemainingSize();
 
 	/* Calculate remaining writable buffer size */
-	if ((haudio->out_rd_ptr + out_rd_ptr_offset) < haudio->out_wr_ptr) {
-	  audio_out_buf_writable_size = haudio->out_rd_ptr + out_rd_ptr_offset + AUDIO_TOTAL_OUT_BUF_SIZE - haudio->out_wr_ptr;
+	if (haudio->out_rd_ptr < haudio->out_wr_ptr) {
+	  audio_out_buf_writable_size = haudio->out_rd_ptr + AUDIO_TOTAL_BUF_SIZE - haudio->out_wr_ptr;
 	} else {
-	  audio_out_buf_writable_size = haudio->out_rd_ptr + out_rd_ptr_offset - haudio->out_wr_ptr;
+	  audio_out_buf_writable_size = haudio->out_rd_ptr - haudio->out_wr_ptr;
 	}
 
 #ifdef USE_SYNC_EP
@@ -852,13 +852,13 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
 	}
 
 	shift = 0;
-	gap = (haudio->out_wr_ptr - haudio->out_rd_ptr - out_rd_ptr_offset);
+	gap = (haudio->out_wr_ptr - haudio->out_rd_ptr);
 
 	if (gap < 0)
 	{
-		gap += (AUDIO_TOTAL_OUT_BUF_SIZE);
+		gap += (AUDIO_TOTAL_BUF_SIZE);
 	}
-	shift = ((AUDIO_TOTAL_OUT_BUF_SIZE/2) - gap)>>3;
+	shift = ((AUDIO_TOTAL_BUF_SIZE/2) - gap)>>3;
 	accum += (TIM2->CCR1);
 
 	if (shift != 0)
@@ -881,23 +881,23 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
 	if (sof_count_out++ == (1<<SOF_RATE)) {
 		sof_count_out = 0;
 	  /* Calculate feedback value based on the change of writable buffer size */
-		if(audio_out_buf_writable_size >= (3*(AUDIO_TOTAL_OUT_BUF_SIZE>>3) + out_gap) && audio_out_buf_writable_size <= (5*(AUDIO_TOTAL_OUT_BUF_SIZE>>3) - out_gap))
+		if(audio_out_buf_writable_size >= (3*(AUDIO_TOTAL_BUF_SIZE>>3) + out_gap) && audio_out_buf_writable_size <= (5*(AUDIO_TOTAL_BUF_SIZE>>3) - out_gap))
 		{
 			tlv320aic3204_drv->SetFrequencyDeviation(0);
 			LED_GPIO_Port->ODR &= ~LED_Pin;
 			out_gap = 0;
 		}
-		else if(audio_out_buf_writable_size < 3*(AUDIO_TOTAL_OUT_BUF_SIZE>>3) + out_gap)
+		else if(audio_out_buf_writable_size < 3*(AUDIO_TOTAL_BUF_SIZE>>3) + out_gap)
 		{
 			tlv320aic3204_drv->SetFrequencyDeviation(2);
 			LED_GPIO_Port->ODR ^= LED_Pin;
-			out_gap = AUDIO_TOTAL_OUT_BUF_SIZE>>4;
+			out_gap = AUDIO_TOTAL_BUF_SIZE>>4;
 		}
-		else if(audio_out_buf_writable_size > 5*(AUDIO_TOTAL_OUT_BUF_SIZE>>3) - out_gap)
+		else if(audio_out_buf_writable_size > 5*(AUDIO_TOTAL_BUF_SIZE>>3) - out_gap)
 		{
 			tlv320aic3204_drv->SetFrequencyDeviation(1);
 			LED_GPIO_Port->ODR |= LED_Pin;
-			out_gap = AUDIO_TOTAL_OUT_BUF_SIZE>>4;
+			out_gap = AUDIO_TOTAL_BUF_SIZE>>4;
 		}
 
 	}
@@ -926,41 +926,41 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
   {
 	  /* Remaining writable buffer size */
 	  uint32_t audio_buf_writable_size;
-	  in_rd_ptr_offset = AUDIO_TOTAL_IN_BUF_SIZE/4 - tlv320aic3204_drv->GetInDataRemainingSize();
+	  haudio->in_rd_ptr = AUDIO_TOTAL_BUF_SIZE - tlv320aic3204_drv->GetInDataRemainingSize();
 
 	  /* Calculate remaining writable buffer size */
-	  if ((haudio->in_rd_ptr + in_rd_ptr_offset) < haudio->in_wr_ptr) {
-	    audio_buf_writable_size = haudio->in_rd_ptr + in_rd_ptr_offset + AUDIO_TOTAL_IN_BUF_SIZE - haudio->in_wr_ptr;
+	  if (haudio->in_rd_ptr < haudio->in_wr_ptr) {
+	    audio_buf_writable_size = haudio->in_rd_ptr + AUDIO_TOTAL_BUF_SIZE - haudio->in_wr_ptr;
 	  } else {
-	    audio_buf_writable_size = haudio->in_rd_ptr + in_rd_ptr_offset - haudio->in_wr_ptr;
+	    audio_buf_writable_size = haudio->in_rd_ptr - haudio->in_wr_ptr;
 	  }
 
 	  if (sof_count_in++ == (1<<SOF_RATE)) {
 	    sof_count_in = 0;
 	    /* Set in packet size value based on the change of writable buffer size */
-	    if(audio_buf_writable_size >= (3*(AUDIO_TOTAL_IN_BUF_SIZE>>3) + in_gap) && audio_buf_writable_size <= (5*(AUDIO_TOTAL_IN_BUF_SIZE>>3) - in_gap))
+	    if(audio_buf_writable_size >= (3*(AUDIO_TOTAL_BUF_SIZE>>3) + in_gap) && audio_buf_writable_size <= (5*(AUDIO_TOTAL_BUF_SIZE>>3) - in_gap))
 	    {
 	    	haudio->in_packet_size = AUDIO_IN_PACKET;
 	    	LED_GPIO_Port->ODR &= ~LED_Pin;
 	    	in_gap = 0;
 	    }
-	    else if(audio_buf_writable_size < 3*(AUDIO_TOTAL_IN_BUF_SIZE>>3) + in_gap)
+	    else if(audio_buf_writable_size < 3*(AUDIO_TOTAL_BUF_SIZE>>3) + in_gap)
 	    {
 	    	haudio->in_packet_size = AUDIO_IN_PACKET-2U;
 	    	LED_GPIO_Port->ODR ^= LED_Pin;
-	    	in_gap = AUDIO_TOTAL_IN_BUF_SIZE>>4;
+	    	in_gap = AUDIO_TOTAL_BUF_SIZE>>4;
 	    }
-	    else if(audio_buf_writable_size > 5*(AUDIO_TOTAL_IN_BUF_SIZE>>3) - in_gap)
+	    else if(audio_buf_writable_size > 5*(AUDIO_TOTAL_BUF_SIZE>>3) - in_gap)
 	    {
 	    	haudio->in_packet_size = AUDIO_IN_PACKET+2U;
 	    	LED_GPIO_Port->ODR |= LED_Pin;
-	    	in_gap = AUDIO_TOTAL_IN_BUF_SIZE>>4;
+	    	in_gap = AUDIO_TOTAL_BUF_SIZE>>4;
 	    }
 	  }
   }
 
   /* Prepare AUDIO IN endpoint to send 1st packet */
-  if (haudio->in_packet_buffer_enable == 2U && haudio->in_rd_ptr >= AUDIO_TOTAL_IN_BUF_SIZE / 2U)
+  if (haudio->in_packet_buffer_enable == 2U && haudio->in_rd_ptr >= AUDIO_TOTAL_BUF_SIZE / 2U)
   {
 	  haudio->in_packet_buffer_enable = 1U;
 
@@ -1059,14 +1059,14 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef* pdev,
 		haudio->out_buffer[haudio->out_wr_ptr] = (uint16_t)((haudio->out_packet_buffer[packet_data_ptr + 1] << 8)|(haudio->out_packet_buffer[packet_data_ptr]));
 		/* Rollback if reach end of buffer */
 		haudio->out_wr_ptr++;
-		if (haudio->out_wr_ptr == AUDIO_TOTAL_OUT_BUF_SIZE) {
+		if (haudio->out_wr_ptr == AUDIO_TOTAL_BUF_SIZE) {
 			haudio->out_wr_ptr = 0U;
 		}
 
 		haudio->out_buffer[haudio->out_wr_ptr] = (uint16_t)((haudio->out_packet_buffer[packet_data_ptr + 3] << 8)|(haudio->out_packet_buffer[packet_data_ptr + 2]));
 		/* Rollback if reach end of buffer */
 		haudio->out_wr_ptr++;
-		if (haudio->out_wr_ptr == AUDIO_TOTAL_OUT_BUF_SIZE) {
+		if (haudio->out_wr_ptr == AUDIO_TOTAL_BUF_SIZE) {
 			haudio->out_wr_ptr = 0U;
 		}
 
@@ -1075,14 +1075,13 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef* pdev,
 
 	/* Start playing when half of the audio buffer is filled */
 	if (haudio->out_offset == AUDIO_OFFSET_UNKNOWN) {
-		if (haudio->out_wr_ptr >= AUDIO_TOTAL_OUT_BUF_SIZE / 2U)
+		if (haudio->out_wr_ptr >= AUDIO_TOTAL_BUF_SIZE / 2U)
 		{
 			haudio->out_offset = AUDIO_OFFSET_NONE;
 
 			if (haudio->out_rd_enable == 0U) {
 				haudio->out_rd_enable = 1U;
 			}
-			((USBD_AUDIO_ItfTypeDef*)pdev->pUserData)->AudioCmd(haudio->out_buffer, AUDIO_TOTAL_OUT_BUF_SIZE/4, AUDIO_CMD_START);
 		}
 	}
 	// set data received flag for starting DMA transmit
@@ -1277,6 +1276,8 @@ static void AUDIO_OUT_StopAndReset(USBD_HandleTypeDef* pdev)
   USBD_AUDIO_HandleTypeDef* haudio;
   haudio = (USBD_AUDIO_HandleTypeDef*)pdev->pClassData;
 
+  ((USBD_AUDIO_ItfTypeDef*)pdev->pUserData)->AudioCmd(NULL, 0, AUDIO_CMD_STOP);
+
 #ifndef USE_SYNC_EP
 	tlv320aic3204_drv->SetFrequencyDeviation(0);
 #endif
@@ -1300,6 +1301,7 @@ static void AUDIO_OUT_Restart(USBD_HandleTypeDef* pdev)
 	tx_flag = 0U;
 	SOF_num = 0;
 #endif
+	((USBD_AUDIO_ItfTypeDef*)pdev->pUserData)->AudioCmd(NULL, 0, AUDIO_CMD_RESUME);
 }
 
 static void AUDIO_IN_StopAndReset(USBD_HandleTypeDef* pdev)
@@ -1307,14 +1309,14 @@ static void AUDIO_IN_StopAndReset(USBD_HandleTypeDef* pdev)
   USBD_AUDIO_HandleTypeDef* haudio;
   haudio = (USBD_AUDIO_HandleTypeDef*)pdev->pClassData;
 
+  ((USBD_AUDIO_ItfTypeDef*)pdev->pUserData)->AudioCmd(NULL, 0, AUDIO_CMD_STOP);
+
   haudio->in_packet_buffer_enable = 0U;
   haudio->in_offset = AUDIO_OFFSET_UNKNOWN;
   haudio->in_rd_ptr = 0U;
   haudio->in_wr_ptr = 0U;
 
   USBD_LL_FlushEP(pdev, AUDIO_IN_EP);
-
-//  ((USBD_AUDIO_ItfTypeDef*)pdev->pUserData)->AudioCmd(NULL, 0, AUDIO_CMD_STOP);
 }
 
 static void AUDIO_IN_Restart(USBD_HandleTypeDef* pdev)
@@ -1325,7 +1327,7 @@ static void AUDIO_IN_Restart(USBD_HandleTypeDef* pdev)
   haudio->in_packet_buffer_enable = 2U;
   haudio->in_packet_size = AUDIO_IN_PACKET;
 
-  ((USBD_AUDIO_ItfTypeDef *) pdev->pUserData)->AudioCmd(haudio->in_buffer, AUDIO_TOTAL_IN_BUF_SIZE/4, AUDIO_CMD_RECORD);
+  ((USBD_AUDIO_ItfTypeDef*)pdev->pUserData)->AudioCmd(NULL, 0, AUDIO_CMD_RESUME);
 }
 
 static void Prepare_IN_Packet(USBD_HandleTypeDef* pdev)
@@ -1346,7 +1348,7 @@ static void Prepare_IN_Packet(USBD_HandleTypeDef* pdev)
 		haudio->in_packet_buffer[i+1] = (uint8_t)((temp>>8) & 0xFF);
 
 	  /* Rollback if reach end of buffer */
-	  if (haudio->in_wr_ptr >= AUDIO_TOTAL_IN_BUF_SIZE) {
+	  if (haudio->in_wr_ptr >= AUDIO_TOTAL_BUF_SIZE) {
 		haudio->in_wr_ptr = 0U;
 	  }
 	}
@@ -1384,55 +1386,24 @@ int8_t VOL_PERCENT(int16_t vol)
 	return (int8_t)(vol>>7);
 }
 
-void USBD_AUDIO_UpdateOutBuffer(USBD_HandleTypeDef* pdev)
+void USBD_AUDIO_UpdateBuffers(USBD_HandleTypeDef* pdev)
 {
-	uint32_t BufferSize = AUDIO_TOTAL_OUT_BUF_SIZE;
 	USBD_AUDIO_HandleTypeDef   *haudio;
 
 	haudio = (USBD_AUDIO_HandleTypeDef *) pdev->pClassData;
 
+	// update transmit data buffer
 	if(haudio->out_rd_enable == 1U)
 	{
 		// start DMA transmit only if data received from USB
 		if(isDataReceivedFromUSB)
 		{
 			isDataReceivedFromUSB = 0U;
-			haudio->out_rd_ptr += (uint16_t)BufferSize/4;
-
-			if (haudio->out_rd_ptr == AUDIO_TOTAL_OUT_BUF_SIZE)
-			{
-			  /* roll back */
-			  haudio->out_rd_ptr = 0U;
-			}
-			((USBD_AUDIO_ItfTypeDef *)pdev->pUserData)->AudioCmd(&haudio->out_buffer[haudio->out_rd_ptr],
-																	 BufferSize/4,
-																	 AUDIO_CMD_PLAY);
 		}
 		else
 		{
 			AUDIO_OUT_StopAndReset(pdev);
 		}
-	}
-}
-
-void USBD_AUDIO_UpdateInBuffer(USBD_HandleTypeDef* pdev)
-{
-	uint32_t BufferSize = AUDIO_TOTAL_IN_BUF_SIZE;
-	USBD_AUDIO_HandleTypeDef   *haudio;
-	haudio = (USBD_AUDIO_HandleTypeDef *) pdev->pClassData;
-
-	if(haudio->in_packet_buffer_enable > 0)
-	{
-		haudio->in_rd_ptr += (uint16_t)BufferSize/4;
-
-		if (haudio->in_rd_ptr == AUDIO_TOTAL_IN_BUF_SIZE)
-		{
-		  /* roll back */
-		  haudio->in_rd_ptr = 0U;
-		}
-		((USBD_AUDIO_ItfTypeDef *)pdev->pUserData)->AudioCmd(&haudio->in_buffer[haudio->in_rd_ptr],
-																 BufferSize/4,
-																 AUDIO_CMD_RECORD);
 	}
 }
 

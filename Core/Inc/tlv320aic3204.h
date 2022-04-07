@@ -39,6 +39,7 @@ typedef struct
 	uint16_t (*GetInDataRemainingSize)(void);
 	void (*SetFrequencyDeviation)(uint8_t dev_type);
 	uint8_t (*isOutMuted)(void);
+	void (*StartDataTransfer)(uint16_t* tx_data, uint16_t* rx_data, uint16_t size);
 }AudioCodecDrv;
 
 extern AudioCodecDrv *tlv320aic3204_drv;

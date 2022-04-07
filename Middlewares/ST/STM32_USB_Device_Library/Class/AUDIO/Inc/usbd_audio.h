@@ -163,12 +163,10 @@
 
 /* Number of sub-packets in the audio transfer buffer. You can modify this value but always make sure
   that it is an even number and higher than 3 */
-#define AUDIO_OUT_PACKET_NUM                          8U
-#define AUDIO_IN_PACKET_NUM                           8U
+#define AUDIO_PACKET_NUM                          8U
 
 /* Total size of the audio transfer buffer */
-#define AUDIO_TOTAL_OUT_BUF_SIZE                          ((uint16_t)((USBD_AUDIO_FREQ / 1000U) * 2U * 4U * AUDIO_OUT_PACKET_NUM))
-#define AUDIO_TOTAL_IN_BUF_SIZE                           ((uint16_t)((USBD_AUDIO_FREQ / 1000U) * 1U * 4U * AUDIO_IN_PACKET_NUM))
+#define AUDIO_TOTAL_BUF_SIZE                          ((uint16_t)((USBD_AUDIO_FREQ / 1000U) * 2U * 4U * AUDIO_PACKET_NUM))
 
 // USB macros
 #define USB_DIEPCTL(ep_addr) ((USB_OTG_INEndpointTypeDef *)((uint32_t)USB_OTG_FS + USB_OTG_IN_ENDPOINT_BASE   \
@@ -319,9 +317,7 @@ extern USBD_ClassTypeDef  USBD_AUDIO;
 uint8_t  USBD_AUDIO_RegisterInterface  (USBD_HandleTypeDef   *pdev,
                                         USBD_AUDIO_ItfTypeDef *fops);
 
-void USBD_AUDIO_UpdateOutBuffer(USBD_HandleTypeDef* pdev);
-
-void USBD_AUDIO_UpdateInBuffer(USBD_HandleTypeDef* pdev);
+void USBD_AUDIO_UpdateBuffers(USBD_HandleTypeDef* pdev);
 /**
   * @}
   */

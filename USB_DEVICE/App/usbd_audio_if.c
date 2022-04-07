@@ -163,7 +163,6 @@ static int8_t AUDIO_Init_FS(uint32_t AudioFreq, uint32_t Volume, uint32_t option
   tlv320aic3204_drv->RecordingInit();
 
   AUDIO_VolumeCtl_FS(Volume);
-
   return (USBD_OK);
   /* USER CODE END 0 */
 }
@@ -195,20 +194,14 @@ static int8_t AUDIO_AudioCmd_FS(uint16_t* pbuf, uint32_t size, uint8_t cmd)
   {
     case AUDIO_CMD_START:
     case AUDIO_CMD_PLAY:
-    	tlv320aic3204_drv->WriteData(pbuf, size);
-			// start measuring delay between stimulus start and key press
-			if(kbState->isDelayMeasureTestEnabled)
-			{
-				kbState->StartDelayMeasureTimer();
-			}
+		if(kbState->isDelayMeasureTestEnabled)
+		{
+			kbState->StartDelayMeasureTimer();
+		}
     	break;
 
     case AUDIO_CMD_STOP:
     	tlv320aic3204_drv->Stop();
-    	break;
-
-    case AUDIO_CMD_RECORD:
-    	tlv320aic3204_drv->ReadData(pbuf, size);
     	break;
 
     case AUDIO_CMD_RESUME:
@@ -291,14 +284,9 @@ void HalfTransfer_CallBack_FS(void)
 }
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
-void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s)
+void HAL_I2SEx_TxRxCpltCallback(I2S_HandleTypeDef *hi2s)
 {
-	USBD_COMP_AUDIO_UpdateOutBuffer();
-}
-
-void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s)
-{
-	USBD_COMP_AUDIO_UpdateInBuffer();
+	USBD_COMP_AUDIO_UpdateBuffers();
 }
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
