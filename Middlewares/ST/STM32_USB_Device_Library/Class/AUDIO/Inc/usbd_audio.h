@@ -253,7 +253,7 @@ typedef struct
   uint32_t                  alt_setting[USBD_MAX_NUM_INTERFACES + 1];
   uint16_t*                 out_buffer;
   uint8_t* 					out_packet_buffer;
-  AUDIO_OffsetTypeDef       out_offset;
+  uint8_t				    out_is_playing;
   uint8_t                   out_rd_enable;
   uint16_t                  out_rd_ptr;
   uint16_t                  out_wr_ptr;
@@ -277,8 +277,6 @@ typedef struct
     int8_t  (*AudioCmd)     (uint16_t* pbuf, uint32_t size, uint8_t cmd);
     int8_t  (*VolumeCtl)    (uint8_t vol);
     int8_t  (*MuteCtl)      (uint8_t cmd);
-    int8_t  (*PeriodicTC)   (uint8_t cmd);
-    int8_t  (*GetState)     (void);
 }USBD_AUDIO_ItfTypeDef;
 /**
   * @}

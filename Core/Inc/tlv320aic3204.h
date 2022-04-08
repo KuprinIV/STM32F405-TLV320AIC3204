@@ -21,9 +21,8 @@ typedef enum
 
 typedef struct
 {
-	void (*InitInterface)(uint8_t dir);
-	void (*PlaybackInit)(void);
-	void (*RecordingInit)(void);
+	void (*InitInterface)(void);
+	void (*CodecInit)(void);
 	void (*DeInit)(void);
 	void (*Reset)(void);
 	void (*SelectOutput)(OutputsType output);

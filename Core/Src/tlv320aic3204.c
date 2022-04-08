@@ -22,22 +22,14 @@ static void tlv320aic3204_hardwareReset(void);
 /**
  * @brief
  * Codec I2S interface init function
- * @params
- * dir - interface direction: 0 - out, 1 - in
  */
-static void tlv320aic3204_InterfaceInit(uint8_t dir);
+static void tlv320aic3204_InterfaceInit(void);
 
 /**
  * @brief
- * Codec playback init function
+ * Codec playback and recording init function
  */
-static void tlv320aic3204_PlaybackInit(void);
-
-/**
- * @brief
- * Codec recording init function
- */
-static void tlv320aic3204_MicInit(void);
+static void tlv320aic3204_CodecInit(void);
 
 /**
  * @brief
@@ -124,8 +116,7 @@ static void tlv320aic3204_StartDataTransfer(uint16_t* tx_data, uint16_t* rx_data
 AudioCodecDrv tlv320aic3204_driver =
 {
 		tlv320aic3204_InterfaceInit,
-		tlv320aic3204_PlaybackInit,
-		tlv320aic3204_MicInit,
+		tlv320aic3204_CodecInit,
 		tlv320aic3204_DeInit,
 		tlv320aic3204_hardwareReset,
 		tlv320aic3204_selectOutputs,
@@ -177,7 +168,7 @@ static void tlv320aic3204_hardwareReset(void)
 	HAL_Delay(2);
 }
 
-static void tlv320aic3204_InterfaceInit(uint8_t dir)
+static void tlv320aic3204_InterfaceInit(void)
 {
 // codec control interface init
 	  /* SPI1 parameter configuration*/
@@ -224,7 +215,7 @@ static void tlv320aic3204_InterfaceInit(uint8_t dir)
 	  HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
 }
 
-static void tlv320aic3204_PlaybackInit(void)
+static void tlv320aic3204_CodecInit(void)
 {
 // codec DAC init
 	//select Page 0
@@ -284,15 +275,10 @@ static void tlv320aic3204_PlaybackInit(void)
 	writeRegister(0x3F, 0xD5);
 	// Unmute the DAC digital volume control
 	writeRegister(0x40, 0x00);
-}
 
-static void tlv320aic3204_MicInit(void)
-{
-	//codec ADC init
+//codec ADC init
 	// Initialize to Page 0
 	writeRegister(PAGE_SELECT_REGISTER, 0);
-	// make software reset
-//	writeRegister(0x01, 0x01);
 	// Power up NADC divider with value 1
 	writeRegister(0x12, 0x81);
 	// Power up MADC divider with value 2
@@ -303,20 +289,10 @@ static void tlv320aic3204_MicInit(void)
 	writeRegister(0x3B, 0x01);
 	// Select Page 1
 	writeRegister(PAGE_SELECT_REGISTER, 1);
-	// Disable Internal Crude AVdd in presence of external AVdd supply or before
-	//powering up internal AVdd LDO
-//	writeRegister(0x01, 0x08);
-//	// Enable Master Analog Power Control
-//	writeRegister(0x02, 0x01);
-//	// Set the Input Common Mode to 0.9V and Output Common Mode for Headphone to
-//	// Input Common Mode
-//	writeRegister(0x0A, 0x00);
 	// Select ADC PTM_R4
 	writeRegister(0x3D, 0x00);
 	// Set MicPGA startup delay to 3.1ms
 	writeRegister(0x47, 0x32);
-	// Set the REF charging time to 40ms
-//	writeRegister(0x7B, 0x01);
 	// Route IN1L to LEFT_P with 20K input impedance
 	writeRegister(0x34, 0x80);
 	// Route Common Mode to LEFT_M with impedance of 20K

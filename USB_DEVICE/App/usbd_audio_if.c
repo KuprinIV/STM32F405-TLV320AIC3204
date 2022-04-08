@@ -91,10 +91,7 @@
   */
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
-uint16_t sinebuf[96] = {0, 0, 4276, 4276, 8480, 8480, 12539, 12539, 16383, 16383, 19946, 19946, 23169, 23169, 25995, 25995, 28376, 28376, 30271, 30271, 31649, 31649, 32485, 32485, 32766, 32766,
-32485, 32485, 31649, 31649, 30271, 30271, 28376, 28376, 25995, 25995, 23169, 23169, 19946, 19946, 16383, 16383, 12539, 12539, 8480, 8480, 4276, 4276, 0, 0,
-61259, 61259, 57055, 57055, 52996, 52996, 49153, 49153, 45589, 45589, 42366, 42366, 39540, 39540, 37159, 37159, 35264, 35264, 33886, 33886, 33050, 33050, 32770, 32770,
-33050, 33050, 33886, 33886, 35264, 35264, 37159, 37159, 39540, 39540, 42366, 42366, 45589, 45589, 49152, 49152, 52996, 52996, 57055, 57055, 61259, 61259};
+
 /* USER CODE END PRIVATE_VARIABLES */
 
 /**
@@ -126,8 +123,6 @@ static int8_t AUDIO_DeInit_FS(uint32_t options);
 static int8_t AUDIO_AudioCmd_FS(uint16_t* pbuf, uint32_t size, uint8_t cmd);
 static int8_t AUDIO_VolumeCtl_FS(uint8_t vol);
 static int8_t AUDIO_MuteCtl_FS(uint8_t cmd);
-static int8_t AUDIO_PeriodicTC_FS(uint8_t cmd);
-static int8_t AUDIO_GetState_FS(void);
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_DECLARATION */
 
 /* USER CODE END PRIVATE_FUNCTIONS_DECLARATION */
@@ -143,8 +138,6 @@ USBD_AUDIO_ItfTypeDef USBD_AUDIO_fops_FS =
   AUDIO_AudioCmd_FS,
   AUDIO_VolumeCtl_FS,
   AUDIO_MuteCtl_FS,
-  AUDIO_PeriodicTC_FS,
-  AUDIO_GetState_FS
 };
 
 /* Private functions ---------------------------------------------------------*/
@@ -158,9 +151,8 @@ USBD_AUDIO_ItfTypeDef USBD_AUDIO_fops_FS =
 static int8_t AUDIO_Init_FS(uint32_t AudioFreq, uint32_t Volume, uint32_t options)
 {
   /* USER CODE BEGIN 0 */
-  tlv320aic3204_drv->InitInterface(0);
-  tlv320aic3204_drv->PlaybackInit();
-  tlv320aic3204_drv->RecordingInit();
+  tlv320aic3204_drv->InitInterface();
+  tlv320aic3204_drv->CodecInit();
 
   AUDIO_VolumeCtl_FS(Volume);
   return (USBD_OK);
@@ -227,51 +219,6 @@ static int8_t AUDIO_MuteCtl_FS(uint8_t cmd)
 	tlv320aic3204_drv->MuteCtrl(cmd);
 	return (USBD_OK);
   /* USER CODE END 4 */
-}
-
-/**
-  * @brief  AUDIO_PeriodicT_FS
-  * @param  cmd: Command opcode
-  * @retval USBD_OK if all operations are OK else USBD_FAIL
-  */
-static int8_t AUDIO_PeriodicTC_FS(uint8_t cmd)
-{
-  /* USER CODE BEGIN 5 */
-  return (USBD_OK);
-  /* USER CODE END 5 */
-}
-
-/**
-  * @brief  Gets AUDIO State.
-  * @retval USBD_OK if all operations are OK else USBD_FAIL
-  */
-static int8_t AUDIO_GetState_FS(void)
-{
-  /* USER CODE BEGIN 6 */
-  return (USBD_OK);
-  /* USER CODE END 6 */
-}
-
-/**
-  * @brief  Manages the DMA full transfer complete event.
-  * @retval None
-  */
-void TransferComplete_CallBack_FS(void)
-{
-  /* USER CODE BEGIN 7 */
-
-  /* USER CODE END 7 */
-}
-
-/**
-  * @brief  Manages the DMA Half transfer complete event.
-  * @retval None
-  */
-void HalfTransfer_CallBack_FS(void)
-{
-  /* USER CODE BEGIN 8 */
-
-  /* USER CODE END 8 */
 }
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
