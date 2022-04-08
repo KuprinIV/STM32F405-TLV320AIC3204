@@ -59,20 +59,14 @@ extern USBD_COMP_ItfTypeDef USBD_COMP_fops_FS;
 /* Exported functions prototypes ---------------------------------------------*/
 uint8_t USBD_COMP_RegisterInterface (USBD_HandleTypeDef *pdev, USBD_COMP_ItfTypeDef *fops);
 uint8_t USBD_COMP_HID_SendReport_FS(uint8_t* Buf, uint16_t  Len);
-void USBD_COMP_AUDIO_UpdateBuffers(void);
+void USBD_COMP_AUDIO_UpdateBuffers(AUDIO_OffsetTypeDef offset);
 
 /* Private defines -----------------------------------------------------------*/
 #define CLASS_NUM                    2U
 #define UAC                          0U
 #define HID                          1U
 #define USBD_COMP_CLASS              &USBD_COMP
-
-#ifdef USE_SYNC_EP
 #define USB_COMP_CONFIG_DESC_SIZ     233U
-#else
-#define USB_COMP_CONFIG_DESC_SIZ     224U
-#endif
-
 #define HID_CTRL_IF					 3U
 
 #endif /* ST_STM32_USB_DEVICE_LIBRARY_CLASS_COMP_INC_USBD_COMP_H_ */

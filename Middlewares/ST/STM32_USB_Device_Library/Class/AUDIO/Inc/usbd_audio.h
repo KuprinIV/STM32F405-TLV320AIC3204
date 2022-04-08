@@ -75,8 +75,6 @@
 #define USBD_MAX_NUM_INTERFACES                       4U
 #endif
 
-#define USE_SYNC_EP 								  1U
-
 /* bEndpointAddress, see UAC 1.0 spec, p.61 */
 #define AUDIO_OUT_EP                                  0x03U
 #define AUDIO_IN_EP                                   0x81U
@@ -88,11 +86,7 @@
 
 #define SOF_RATE                                      0x05U
 
-#ifdef USE_SYNC_EP
 #define USB_AUDIO_CONFIG_DESC_SIZ                     201
-#else
-#define USB_AUDIO_CONFIG_DESC_SIZ                     192
-#endif
 
 #define AUDIO_INTERFACE_DESC_SIZE                     0x09U
 #define USB_AUDIO_DESC_SIZ                            0x09U
@@ -268,7 +262,6 @@ typedef struct
   uint16_t*                 in_buffer;
   uint8_t*					in_packet_buffer;
   uint16_t 					in_packet_size;
-  AUDIO_OffsetTypeDef       in_offset;
   uint8_t 					in_packet_buffer_enable;
   uint16_t                  in_rd_ptr;
   uint16_t                  in_wr_ptr;
@@ -317,7 +310,7 @@ extern USBD_ClassTypeDef  USBD_AUDIO;
 uint8_t  USBD_AUDIO_RegisterInterface  (USBD_HandleTypeDef   *pdev,
                                         USBD_AUDIO_ItfTypeDef *fops);
 
-void USBD_AUDIO_UpdateBuffers(USBD_HandleTypeDef* pdev);
+void USBD_AUDIO_UpdateBuffers(USBD_HandleTypeDef* pdev, AUDIO_OffsetTypeDef offset);
 /**
   * @}
   */

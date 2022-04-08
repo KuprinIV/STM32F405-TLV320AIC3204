@@ -101,36 +101,6 @@ static void tlv320aic3204_LDO_PowerCtrl(uint8_t is_enabled);
 
 /**
  * @brief
- * Write data to the codec by I2S interface
- * @params
- * buffer - data samples
- * size - buffer length
- */
-static void tlv320aic3204_WriteData(uint16_t* buffer, uint16_t size);
-
-/**
- * @brief
- * Read data from the codec by I2S interface
- * @params
- * buffer - data samples
- * size - buffer length
- */
-static void tlv320aic3204_ReadData(uint16_t* buffer, uint16_t size);
-
-/**
- * @brief
- * Stop I2S DMA function
- */
-static void tlv320aic3204_Stop(void);
-
-/**
- * @brief
- * Resume I2S DMA function
- */
-static void tlv320aic3204_Resume(void);
-
-/**
- * @brief
  * Get I2S DMA remaining size for transmit
  */
 static uint16_t tlv320aic3204_getOutRemainingDataSize(void);
@@ -140,22 +110,6 @@ static uint16_t tlv320aic3204_getOutRemainingDataSize(void);
  * Get I2S DMA remaining size for receive
  */
 static uint16_t tlv320aic3204_getInRemainingDataSize(void);
-
-/**
- * @brief
- * Set I2S clock frequency deviation for synchronizing with USB SOF
- * @params
- * dev_type - 0 - nominal freq, 1 - lower freq (47,83 kHz), 2 - higher freq (48,17 kHz)
- */
-static void tlv320aic3204_setFreqDeviation(uint8_t dev_type);
-
-/**
- * @brief
- * Get codec's mute state
- * @return
- * 0 - isn't muted, 1 - muted
- */
-static uint8_t tlv320aic3204_IsOutMuted(void);
 
 /**
  * @brief
@@ -179,14 +133,8 @@ AudioCodecDrv tlv320aic3204_driver =
 		tlv320aic3204_muteControl,
 		tlv320aic3204_setOutDriverGain,
 		tlv320aic3204_setDigitalDACVolume,
-		tlv320aic3204_WriteData,
-		tlv320aic3204_ReadData,
-		tlv320aic3204_Stop,
-		tlv320aic3204_Resume,
 		tlv320aic3204_getOutRemainingDataSize,
 		tlv320aic3204_getInRemainingDataSize,
-		tlv320aic3204_setFreqDeviation,
-		tlv320aic3204_IsOutMuted,
 		tlv320aic3204_StartDataTransfer,
 };
 
@@ -622,27 +570,6 @@ static void tlv320aic3204_LDO_PowerCtrl(uint8_t is_enabled)
 //	writeRegister(0x47, 0x86);
 //}
 
-static void tlv320aic3204_WriteData(uint16_t* buffer, uint16_t size)
-{
-	HAL_I2S_Transmit_DMA(&hi2s2, buffer, DMA_MAX(size));
-}
-
-static void tlv320aic3204_ReadData(uint16_t* buffer, uint16_t size)
-{
-	HAL_I2S_Receive_DMA(&hi2s2, buffer, DMA_MAX(size));
-}
-
-static void tlv320aic3204_Stop(void)
-{
-	HAL_I2S_DMAPause(&hi2s2);
-//	HAL_I2S_DMAStop(&hi2s2);
-}
-
-static void tlv320aic3204_Resume(void)
-{
-	HAL_I2S_DMAResume(&hi2s2);
-}
-
 static uint16_t tlv320aic3204_getOutRemainingDataSize(void)
 {
 	return (uint16_t)(__HAL_DMA_GET_COUNTER(hi2s2.hdmatx) & 0xFFFF);
@@ -651,48 +578,6 @@ static uint16_t tlv320aic3204_getOutRemainingDataSize(void)
 static uint16_t tlv320aic3204_getInRemainingDataSize()
 {
 	return (uint16_t)(__HAL_DMA_GET_COUNTER(hi2s2.hdmarx) & 0xFFFF);
-}
-
-static void tlv320aic3204_setFreqDeviation(uint8_t dev_type)
-{
-	static volatile uint8_t dev_type_mem;
-	if(dev_type_mem != dev_type)
-	{
-		dev_type_mem = dev_type;
-		// change I2S PLL frequency
-		RCC->CR &= ~RCC_CR_PLLI2SON; // disable I2S PLL
-		switch(dev_type)
-		{
-			case 0:
-			default:
-				RCC->PLLI2SCFGR = 0x60004800; // 288/6 = 48 kHz
-				break;
-
-			case 1:
-				RCC->PLLI2SCFGR = 0x600047C0; // 287/6 = 47,83 kHz
-				break;
-
-			case 2:
-				RCC->PLLI2SCFGR = 0x60004840; // 289/6 = 48,17 kHz
-				break;
-		}
-		RCC->CR |= RCC_CR_PLLI2SON; // enable I2S PLL
-		while(!(RCC->CR & RCC_CR_PLLI2SRDY)) {} // wait I2S PLL ready
-	}
-}
-
-static uint8_t tlv320aic3204_IsOutMuted(void)
-{
-	uint8_t reg_value = 0, result = 0;
-	// Select Page 0
-	writeRegister(PAGE_SELECT_REGISTER, 0);
-	// read DAC mute state
-	reg_value = readRegister(0x40);
-	if(reg_value & 0x0C)
-		result = 1;
-	else
-		result = 0;
-	return result;
 }
 
 static void tlv320aic3204_StartDataTransfer(uint16_t* tx_data, uint16_t* rx_data, uint16_t size)

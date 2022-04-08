@@ -286,11 +286,7 @@ __ALIGN_BEGIN static uint8_t USBD_COMP_CfgDesc[USB_COMP_CONFIG_DESC_SIZ] __ALIGN
 	USB_DESC_TYPE_INTERFACE,    //DescriptorType:Interface
 	AUDIO_OUT_IF,    //InterfaceNum:2
 	0x01,    //AlternateSetting:1
-#ifdef USE_SYNC_EP
 	0x02,    //NumEndpoint:2            //这里包括一个反馈端点
-#else
-	0x01,
-#endif
 	USB_DEVICE_CLASS_AUDIO,    //InterfaceClass:audio
 	AUDIO_SUBCLASS_AUDIOSTREAMING,    //InterfaceSubClass:audio streaming
 	AUDIO_PROTOCOL_UNDEFINED,    //InterfaceProtocol
@@ -321,19 +317,11 @@ __ALIGN_BEGIN static uint8_t USBD_COMP_CfgDesc[USB_COMP_CONFIG_DESC_SIZ] __ALIGN
 	0x09,    //Length
 	USB_DESC_TYPE_ENDPOINT,    //DescriptorType:endpoint descriptor
 	AUDIO_OUT_EP,    //EndpointAddress:Output endpoint 01
-#ifdef USE_SYNC_EP
 	USBD_EP_TYPE_ISOC|0x04,    //Attributes:0x05,Isochronous,Synchronization Type(Asynchronous).........
-#else
-	USBD_EP_TYPE_ISOC,
-#endif
 	AUDIO_PACKET_SZE_16B(USBD_AUDIO_FREQ),
 	0x01,    //Interval       AUDIO_OUT_PACKET
 	0x00,           //没有使用
-#ifdef USE_SYNC_EP
 	SYNC_IN_EP,           //这个值是反馈端点的端点号 bSynchAddress：同步端点的地址
-#else
-	0x00,
-#endif
 
 	/******************************* Audio Class Specific ENDPOINT Descriptor: 0x25 0x01*******************************/
 	AUDIO_STREAMING_ENDPOINT_DESC_SIZE,    //Length
@@ -343,8 +331,8 @@ __ALIGN_BEGIN static uint8_t USBD_COMP_CfgDesc[USB_COMP_CONFIG_DESC_SIZ] __ALIGN
 	0x00,    //LockDelayUnits
 	0x00,
 	0x00,    //LockDelay
+
 	/* Endpoint 2 - Standard Descriptor - See UAC Spec 1.0 p.63 4.6.2.1 Standard AS Isochronous Synch Endpoint Descriptor */
-#ifdef USE_SYNC_EP
 	AUDIO_STANDARD_ENDPOINT_DESC_SIZE, /* bLength */
 	USB_DESC_TYPE_ENDPOINT,            /* bDescriptorType */
 	SYNC_IN_EP,                       /* bEndpointAddress */
@@ -354,7 +342,6 @@ __ALIGN_BEGIN static uint8_t USBD_COMP_CfgDesc[USB_COMP_CONFIG_DESC_SIZ] __ALIGN
 	0x01,                              /* bInterval 1ms */
 	SOF_RATE,                          /* bRefresh 4ms = 2^2 */
 	0x00,                              /* bSynchAddress */
-#endif
 
 	 /************** Descriptor of CUSTOM HID interface ****************/
 	  /* 09 */
@@ -783,10 +770,10 @@ uint8_t USBD_COMP_HID_SendReport_FS (uint8_t* Buf, uint16_t Len)
   return USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, Buf, Len);
 }
 
-void USBD_COMP_AUDIO_UpdateBuffers(void)
+void USBD_COMP_AUDIO_UpdateBuffers(AUDIO_OffsetTypeDef offset)
 {
 	switchToClass (&hUsbDeviceFS, &comp_dev[UAC]);
-	USBD_AUDIO_UpdateBuffers(&hUsbDeviceFS);
+	USBD_AUDIO_UpdateBuffers(&hUsbDeviceFS, offset);
 }
 
 /****END OF FILE****/

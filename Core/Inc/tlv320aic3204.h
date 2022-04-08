@@ -31,14 +31,8 @@ typedef struct
 	void (*MuteCtrl)(uint8_t mute_state);
 	void (*SetOutputDriverGain)(int8_t gain);
 	void (*SetVolume)(int8_t volume);
-	void (*WriteData)(uint16_t* buffer, uint16_t size);
-	void (*ReadData)(uint16_t* buffer, uint16_t size);
-	void (*Stop)(void);
-	void (*Resume)(void);
 	uint16_t (*GetOutDataRemainingSize)(void);
 	uint16_t (*GetInDataRemainingSize)(void);
-	void (*SetFrequencyDeviation)(uint8_t dev_type);
-	uint8_t (*isOutMuted)(void);
 	void (*StartDataTransfer)(uint16_t* tx_data, uint16_t* rx_data, uint16_t size);
 }AudioCodecDrv;
 

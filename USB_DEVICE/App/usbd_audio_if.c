@@ -193,19 +193,10 @@ static int8_t AUDIO_AudioCmd_FS(uint16_t* pbuf, uint32_t size, uint8_t cmd)
   switch(cmd)
   {
     case AUDIO_CMD_START:
-    case AUDIO_CMD_PLAY:
 		if(kbState->isDelayMeasureTestEnabled)
 		{
 			kbState->StartDelayMeasureTimer();
 		}
-    	break;
-
-    case AUDIO_CMD_STOP:
-    	tlv320aic3204_drv->Stop();
-    	break;
-
-    case AUDIO_CMD_RESUME:
-    	tlv320aic3204_drv->Resume();
     	break;
   }
   return (USBD_OK);
@@ -221,7 +212,7 @@ static int8_t AUDIO_VolumeCtl_FS(uint8_t vol)
 {
   /* USER CODE BEGIN 3 */
 	tlv320aic3204_drv->SetVolume((int8_t)(vol)); // set volume
-  return (USBD_OK);
+	return (USBD_OK);
   /* USER CODE END 3 */
 }
 
@@ -234,7 +225,7 @@ static int8_t AUDIO_MuteCtl_FS(uint8_t cmd)
 {
   /* USER CODE BEGIN 4 */
 	tlv320aic3204_drv->MuteCtrl(cmd);
-  return (USBD_OK);
+	return (USBD_OK);
   /* USER CODE END 4 */
 }
 
@@ -286,7 +277,12 @@ void HalfTransfer_CallBack_FS(void)
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
 void HAL_I2SEx_TxRxCpltCallback(I2S_HandleTypeDef *hi2s)
 {
-	USBD_COMP_AUDIO_UpdateBuffers();
+	USBD_COMP_AUDIO_UpdateBuffers(AUDIO_OFFSET_FULL);
+}
+
+void HAL_I2SEx_TxRxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
+{
+	USBD_COMP_AUDIO_UpdateBuffers(AUDIO_OFFSET_HALF);
 }
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
 

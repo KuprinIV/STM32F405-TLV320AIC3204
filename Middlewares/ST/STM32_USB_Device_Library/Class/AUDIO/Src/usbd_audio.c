@@ -365,11 +365,7 @@ __ALIGN_BEGIN static uint8_t USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZ] __ALI
 	USB_DESC_TYPE_INTERFACE,    //DescriptorType:Interface
 	AUDIO_OUT_IF,    //InterfaceNum:2
     0x01,    //AlternateSetting:1
-#ifdef USE_SYNC_EP
     0x02,    //NumEndpoint:2            //这里包括一个反馈端点
-#else
-	0x01,
-#endif
 	USB_DEVICE_CLASS_AUDIO,    //InterfaceClass:audio
 	AUDIO_SUBCLASS_AUDIOSTREAMING,    //InterfaceSubClass:audio streaming
 	AUDIO_PROTOCOL_UNDEFINED,    //InterfaceProtocol
@@ -398,21 +394,13 @@ __ALIGN_BEGIN static uint8_t USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZ] __ALI
     /******************************* Audio Speaker OUT ENDPOINT descriptor: 0x05 *******************************/
     //播放端点描述符
     0x09,    //Length
-		USB_DESC_TYPE_ENDPOINT,    //DescriptorType:endpoint descriptor
-		AUDIO_OUT_EP,    //EndpointAddress:Output endpoint 01
-#ifdef USE_SYNC_EP
-		USBD_EP_TYPE_ISOC|0x04,    //Attributes:0x05,Isochronous,Synchronization Type(Asynchronous).........
-#else
-		USBD_EP_TYPE_ISOC,
-#endif
-	 AUDIO_PACKET_SZE_16B(USBD_AUDIO_FREQ),
+	USB_DESC_TYPE_ENDPOINT,    //DescriptorType:endpoint descriptor
+	AUDIO_OUT_EP,    //EndpointAddress:Output endpoint 01
+	USBD_EP_TYPE_ISOC|0x04,    //Attributes:0x05,Isochronous,Synchronization Type(Asynchronous).........
+	AUDIO_PACKET_SZE_16B(USBD_AUDIO_FREQ),
     0x01,    //Interval       AUDIO_OUT_PACKET
     0x00,           //没有使用
-#ifdef USE_SYNC_EP
-		SYNC_IN_EP,           //这个值是反馈端点的端点号 bSynchAddress：同步端点的地址
-#else
-		0x00,
-#endif
+	SYNC_IN_EP,           //这个值是反馈端点的端点号 bSynchAddress：同步端点的地址
 
     /******************************* Audio Class Specific ENDPOINT Descriptor: 0x25 0x01*******************************/
 	AUDIO_STREAMING_ENDPOINT_DESC_SIZE,    //Length
@@ -422,8 +410,8 @@ __ALIGN_BEGIN static uint8_t USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZ] __ALI
     0x00,    //LockDelayUnits
     0x00,
     0x00,    //LockDelay
-		/* Endpoint 2 - Standard Descriptor - See UAC Spec 1.0 p.63 4.6.2.1 Standard AS Isochronous Synch Endpoint Descriptor */
-#ifdef USE_SYNC_EP 
+
+	/* Endpoint 2 - Standard Descriptor - See UAC Spec 1.0 p.63 4.6.2.1 Standard AS Isochronous Synch Endpoint Descriptor */
 	AUDIO_STANDARD_ENDPOINT_DESC_SIZE, /* bLength */
     USB_DESC_TYPE_ENDPOINT,            /* bDescriptorType */
     SYNC_IN_EP,                        /* bEndpointAddress */
@@ -433,7 +421,7 @@ __ALIGN_BEGIN static uint8_t USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZ] __ALI
     0x01,                              /* bInterval 1ms */
     SOF_RATE,                          /* bRefresh 4ms = 2^2 */
     0x00,                              /* bSynchAddress */
-#endif
+
 } ;
 
 /**
@@ -456,16 +444,16 @@ __ALIGN_BEGIN static uint8_t USBD_AUDIO_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIE
 volatile uint32_t tx_flag = 1;
 volatile uint32_t is_out_ready = 0;
 volatile uint8_t isDataReceivedFromUSB = 0;
+volatile uint8_t isHalfOutBufferCleared = 0;
+volatile uint8_t isFullOutBufferCleared = 0;
 
-#ifdef USE_SYNC_EP
-	volatile int32_t gap,corr;
-	volatile int32_t shift = 0;
-	static volatile  uint16_t SOF_num=0;
-	uint32_t feedback_data __attribute__ ((aligned(4))) = 0x0C0000;
-	uint32_t accum __attribute__ ((aligned(4))) = 0x0C0000;
-	static volatile uint8_t dpid;
-	volatile uint32_t sync_in_fnsof = 0;
-#endif
+volatile int32_t gap,corr;
+volatile int32_t shift = 0;
+static volatile  uint16_t SOF_num=0;
+uint32_t feedback_data __attribute__ ((aligned(4))) = 0x0C0000;
+uint32_t accum __attribute__ ((aligned(4))) = 0x0C0000;
+static volatile uint8_t dpid;
+volatile uint32_t sync_in_fnsof = 0;
 
 volatile uint32_t audio_in_fnsof = 0;
 
@@ -497,12 +485,10 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef* pdev, uint8_t cfgidx)
   USBD_LL_OpenEP(pdev, AUDIO_OUT_EP, USBD_EP_TYPE_ISOC, AUDIO_OUT_PACKET+16U);
   pdev->ep_out[AUDIO_OUT_EP & 0xFU].is_used = 1U;
 	
-#ifdef USE_SYNC_EP
-	/* Open EP IN (sync)*/
+  /* Open EP IN (sync)*/
   USBD_LL_OpenEP(pdev, SYNC_IN_EP, USBD_EP_TYPE_ISOC, SYNC_IN_PACKET);
   pdev->ep_in[SYNC_IN_EP & 0xFU].is_used = 1U;
   USBD_LL_FlushEP(pdev, SYNC_IN_EP);
-#endif
 	
 	/* Open EP IN (mic) */
   USBD_LL_OpenEP (pdev, AUDIO_IN_EP, USBD_EP_TYPE_ISOC, AUDIO_IN_PACKET+2U);
@@ -536,7 +522,6 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef* pdev, uint8_t cfgidx)
     haudio->vol = USBD_AUDIO_VOL_DEFAULT;
 
     haudio->in_packet_buffer_enable = 0U;
-    haudio->in_offset = AUDIO_OFFSET_UNKNOWN;
     haudio->in_rd_ptr = 0U;
     haudio->in_wr_ptr = 0U;
     haudio->in_packet_size = AUDIO_IN_PACKET;
@@ -571,13 +556,11 @@ static uint8_t USBD_AUDIO_DeInit(USBD_HandleTypeDef* pdev,
   /* Flush all endpoints */
   USBD_LL_FlushEP(pdev, AUDIO_OUT_EP);
   USBD_LL_FlushEP(pdev, AUDIO_IN_EP);
-	
-#ifdef USE_SYNC_EP
-	USBD_LL_FlushEP(pdev, SYNC_IN_EP);
-	/* Close EP IN (sync)*/
+  USBD_LL_FlushEP(pdev, SYNC_IN_EP);
+
+  /* Close EP IN (sync)*/
   USBD_LL_CloseEP(pdev, SYNC_IN_EP);
   pdev->ep_in[SYNC_IN_EP & 0xFU].is_used = 0U;
-#endif
 
   /* Close EP OUT */
   USBD_LL_CloseEP(pdev, AUDIO_OUT_EP);
@@ -699,9 +682,8 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef* pdev,
 							is_out_ready = 0U;
 							tx_flag = 0U;
 							AUDIO_OUT_StopAndReset(pdev);
-						#ifdef USE_SYNC_EP
+
 							USBD_LL_FlushEP(pdev, SYNC_IN_EP);
-						#endif
 							USBD_LL_FlushEP(pdev, AUDIO_OUT_EP);
 						}
             		}
@@ -782,16 +764,15 @@ static uint8_t USBD_AUDIO_DataIn(USBD_HandleTypeDef* pdev,
   haudio = (USBD_AUDIO_HandleTypeDef*) pdev->pClassData;
   if (haudio == NULL)
   {
-		return (uint8_t)USBD_FAIL;
+	  return (uint8_t)USBD_FAIL;
   }
-#ifdef USE_SYNC_EP
+  // sync IN EP handle
   if (epnum == (SYNC_IN_EP & 0x7F))
   {
     tx_flag = 0U;
     SOF_num = 0;
   }
-#endif
-  // send mic data TODO: fix sync fault when audio in data transmit
+  // audio IN EP handle
   if (epnum == (AUDIO_IN_EP & 0x7F))
   {
 	  Prepare_IN_Packet(pdev);
@@ -822,13 +803,9 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
   static volatile uint32_t sof_count_in = 0;
   static volatile uint16_t in_gap = 0;
 
-#ifndef USE_SYNC_EP
-  static volatile uint32_t sof_count_out = 0;
-  static volatile uint16_t out_gap = 0;
-#endif
-
   /* Do stuff only when playing */
-  if (haudio->out_rd_enable == 1U && is_out_ready == 1U) {
+  if (haudio->out_rd_enable == 1U && is_out_ready == 1U)
+  {
 	// wait for stabilization of data pointers stabilization before calculating feedback data
 	/* Remaining writable buffer size */
 	uint32_t audio_out_buf_writable_size;
@@ -837,17 +814,22 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
 	haudio->out_rd_ptr = AUDIO_TOTAL_BUF_SIZE - tlv320aic3204_drv->GetOutDataRemainingSize();
 
 	/* Calculate remaining writable buffer size */
-	if (haudio->out_rd_ptr < haudio->out_wr_ptr) {
+	if (haudio->out_rd_ptr < haudio->out_wr_ptr)
+	{
 	  audio_out_buf_writable_size = haudio->out_rd_ptr + AUDIO_TOTAL_BUF_SIZE - haudio->out_wr_ptr;
-	} else {
+	}
+	else
+	{
 	  audio_out_buf_writable_size = haudio->out_rd_ptr - haudio->out_wr_ptr;
 	}
 
-#ifdef USE_SYNC_EP
 	/* Monitor remaining writable buffer size with LED */
-	if (audio_out_buf_writable_size < AUDIO_BUF_SAFEZONE) {
+	if (audio_out_buf_writable_size < AUDIO_BUF_SAFEZONE)
+	{
 		LED_GPIO_Port->ODR |= LED_Pin;
-	} else {
+	}
+	else
+	{
 		LED_GPIO_Port->ODR &= ~LED_Pin;
 	}
 
@@ -870,42 +852,17 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
 	{
 		feedback_data += (accum<<(6-SOF_RATE));
 		feedback_data >>= 1;
-//		 limit feedback data values in 47 - 49 kHz
+		// limit feedback data values in 47 - 49 kHz
 		if(feedback_data < 0x0BC000) feedback_data = 0x0BC000;
 		if(feedback_data > 0x0C4000) feedback_data = 0x0C4000;
 
 		SOF_num=0;
 		accum=0;
 	}
-#else
-	if (sof_count_out++ == (1<<SOF_RATE)) {
-		sof_count_out = 0;
-	  /* Calculate feedback value based on the change of writable buffer size */
-		if(audio_out_buf_writable_size >= (3*(AUDIO_TOTAL_BUF_SIZE>>3) + out_gap) && audio_out_buf_writable_size <= (5*(AUDIO_TOTAL_BUF_SIZE>>3) - out_gap))
-		{
-			tlv320aic3204_drv->SetFrequencyDeviation(0);
-			LED_GPIO_Port->ODR &= ~LED_Pin;
-			out_gap = 0;
-		}
-		else if(audio_out_buf_writable_size < 3*(AUDIO_TOTAL_BUF_SIZE>>3) + out_gap)
-		{
-			tlv320aic3204_drv->SetFrequencyDeviation(2);
-			LED_GPIO_Port->ODR ^= LED_Pin;
-			out_gap = AUDIO_TOTAL_BUF_SIZE>>4;
-		}
-		else if(audio_out_buf_writable_size > 5*(AUDIO_TOTAL_BUF_SIZE>>3) - out_gap)
-		{
-			tlv320aic3204_drv->SetFrequencyDeviation(1);
-			LED_GPIO_Port->ODR |= LED_Pin;
-			out_gap = AUDIO_TOTAL_BUF_SIZE>>4;
-		}
 
-	}
-#endif
-
-#ifdef USE_SYNC_EP
 	/* Transmit feedback only when the last one is transmitted */
-	if (tx_flag == 0U) {
+	if (tx_flag == 0U)
+	{
 		/* Get FNSOF. Use volatile for fnsof_new since its address is mapped to a hardware register. */
 		uint32_t volatile fnsof_new = USB_SOF_NUMBER();
 
@@ -918,7 +875,6 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
 			tx_flag = 1U;
 		}
 	}
-#endif
   }
 
   // update audio in read pointer
@@ -957,18 +913,18 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
 	    	in_gap = AUDIO_TOTAL_BUF_SIZE>>4;
 	    }
 	  }
-  }
 
-  /* Prepare AUDIO IN endpoint to send 1st packet */
-  if (haudio->in_packet_buffer_enable == 2U && haudio->in_rd_ptr >= AUDIO_TOTAL_BUF_SIZE / 2U)
-  {
-	  haudio->in_packet_buffer_enable = 1U;
+	  /* Prepare AUDIO IN endpoint to send 1st packet */
+	  if (haudio->in_packet_buffer_enable == 2 && haudio->in_rd_ptr >= AUDIO_TOTAL_BUF_SIZE / 2U)
+	  {
+		  haudio->in_packet_buffer_enable = 1;
 
-	  Prepare_IN_Packet(pdev);
-	  audio_in_fnsof = USB_SOF_NUMBER();
+		  Prepare_IN_Packet(pdev);
+		  audio_in_fnsof = USB_SOF_NUMBER();
 
-	  USBD_LL_FlushEP (pdev, AUDIO_IN_EP);
-	  USBD_LL_Transmit (pdev, AUDIO_IN_EP, haudio->in_packet_buffer, haudio->in_packet_size);
+		  USBD_LL_FlushEP (pdev, AUDIO_IN_EP);
+		  USBD_LL_Transmit (pdev, AUDIO_IN_EP, haudio->in_packet_buffer, haudio->in_packet_size);
+	  }
   }
 
   return USBD_OK;
@@ -994,16 +950,23 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
   */
 static uint8_t USBD_AUDIO_IsoINIncomplete(USBD_HandleTypeDef* pdev, uint8_t epnum)
 {
+	USBD_AUDIO_HandleTypeDef* haudio;
+	haudio = (USBD_AUDIO_HandleTypeDef*)pdev->pClassData;
+
 	uint16_t current_sof;
 	current_sof = USB_SOF_NUMBER();
+
 	// check incomplete transfer for AUDIO_IN_EP
 	if(IS_ISO_IN_INCOMPLETE_EP((AUDIO_IN_EP & 0x7F), current_sof, audio_in_fnsof))
 	{
 		USB_CLEAR_INCOMPLETE_IN_EP(AUDIO_IN_EP);
 		USBD_LL_FlushEP(pdev, AUDIO_IN_EP);
+		if(haudio->in_packet_buffer_enable > 0)
+		{
+			USBD_LL_Transmit (pdev, AUDIO_IN_EP, haudio->in_packet_buffer, haudio->in_packet_size);
+		}
 	}
 
-#ifdef USE_SYNC_EP
 	// check incomplete transfer for SYNC_IN_EP
 	if(IS_ISO_IN_INCOMPLETE_EP((SYNC_IN_EP & 0x7F), current_sof, sync_in_fnsof))
 	{
@@ -1017,7 +980,7 @@ static uint8_t USBD_AUDIO_IsoINIncomplete(USBD_HandleTypeDef* pdev, uint8_t epnu
 			tx_flag = 0U;
 		}
 	}
-#endif
+
   return USBD_OK;
 }
 
@@ -1276,16 +1239,10 @@ static void AUDIO_OUT_StopAndReset(USBD_HandleTypeDef* pdev)
   USBD_AUDIO_HandleTypeDef* haudio;
   haudio = (USBD_AUDIO_HandleTypeDef*)pdev->pClassData;
 
-  ((USBD_AUDIO_ItfTypeDef*)pdev->pUserData)->AudioCmd(NULL, 0, AUDIO_CMD_STOP);
-
-#ifndef USE_SYNC_EP
-	tlv320aic3204_drv->SetFrequencyDeviation(0);
-#endif
-
-  haudio->out_offset = AUDIO_OFFSET_UNKNOWN;
   haudio->out_rd_enable = 0U;
-  haudio->out_rd_ptr = 0U;
-  haudio->out_wr_ptr = 0U;
+
+  isHalfOutBufferCleared = 0;
+  isFullOutBufferCleared = 0;
 }
 
 /**
@@ -1294,14 +1251,25 @@ static void AUDIO_OUT_StopAndReset(USBD_HandleTypeDef* pdev)
  */
 static void AUDIO_OUT_Restart(USBD_HandleTypeDef* pdev)
 {
+	USBD_AUDIO_HandleTypeDef* haudio;
+	haudio = (USBD_AUDIO_HandleTypeDef*)pdev->pClassData;
+
 	USBD_LL_FlushEP(pdev, AUDIO_OUT_EP);
-#ifdef USE_SYNC_EP
 	USBD_LL_FlushEP(pdev, SYNC_IN_EP);
 
 	tx_flag = 0U;
 	SOF_num = 0;
-#endif
-	((USBD_AUDIO_ItfTypeDef*)pdev->pUserData)->AudioCmd(NULL, 0, AUDIO_CMD_RESUME);
+
+	// update out buffer read and write pointers
+	haudio->out_rd_ptr = AUDIO_TOTAL_BUF_SIZE - tlv320aic3204_drv->GetOutDataRemainingSize();
+	if(haudio->out_rd_ptr < AUDIO_TOTAL_BUF_SIZE/2)
+	{
+		haudio->out_wr_ptr = haudio->out_rd_ptr + AUDIO_TOTAL_BUF_SIZE/2;
+	}
+	else
+	{
+		haudio->out_wr_ptr = haudio->out_rd_ptr - AUDIO_TOTAL_BUF_SIZE/2;
+	}
 }
 
 static void AUDIO_IN_StopAndReset(USBD_HandleTypeDef* pdev)
@@ -1309,12 +1277,7 @@ static void AUDIO_IN_StopAndReset(USBD_HandleTypeDef* pdev)
   USBD_AUDIO_HandleTypeDef* haudio;
   haudio = (USBD_AUDIO_HandleTypeDef*)pdev->pClassData;
 
-  ((USBD_AUDIO_ItfTypeDef*)pdev->pUserData)->AudioCmd(NULL, 0, AUDIO_CMD_STOP);
-
   haudio->in_packet_buffer_enable = 0U;
-  haudio->in_offset = AUDIO_OFFSET_UNKNOWN;
-  haudio->in_rd_ptr = 0U;
-  haudio->in_wr_ptr = 0U;
 
   USBD_LL_FlushEP(pdev, AUDIO_IN_EP);
 }
@@ -1327,7 +1290,16 @@ static void AUDIO_IN_Restart(USBD_HandleTypeDef* pdev)
   haudio->in_packet_buffer_enable = 2U;
   haudio->in_packet_size = AUDIO_IN_PACKET;
 
-  ((USBD_AUDIO_ItfTypeDef*)pdev->pUserData)->AudioCmd(NULL, 0, AUDIO_CMD_RESUME);
+  // update input buffer read and write pointers
+  haudio->in_rd_ptr = AUDIO_TOTAL_BUF_SIZE - tlv320aic3204_drv->GetInDataRemainingSize();
+  if(haudio->in_rd_ptr < AUDIO_TOTAL_BUF_SIZE/2)
+  {
+	  haudio->in_wr_ptr = haudio->in_rd_ptr + AUDIO_TOTAL_BUF_SIZE/2;
+  }
+  else
+  {
+	  haudio->in_wr_ptr = haudio->in_rd_ptr - AUDIO_TOTAL_BUF_SIZE/2;
+  }
 }
 
 static void Prepare_IN_Packet(USBD_HandleTypeDef* pdev)
@@ -1348,7 +1320,8 @@ static void Prepare_IN_Packet(USBD_HandleTypeDef* pdev)
 		haudio->in_packet_buffer[i+1] = (uint8_t)((temp>>8) & 0xFF);
 
 	  /* Rollback if reach end of buffer */
-	  if (haudio->in_wr_ptr >= AUDIO_TOTAL_BUF_SIZE) {
+	  if (haudio->in_wr_ptr >= AUDIO_TOTAL_BUF_SIZE)
+	  {
 		haudio->in_wr_ptr = 0U;
 	  }
 	}
@@ -1386,16 +1359,15 @@ int8_t VOL_PERCENT(int16_t vol)
 	return (int8_t)(vol>>7);
 }
 
-void USBD_AUDIO_UpdateBuffers(USBD_HandleTypeDef* pdev)
+void USBD_AUDIO_UpdateBuffers(USBD_HandleTypeDef* pdev, AUDIO_OffsetTypeDef offset)
 {
+	uint32_t bufferSize = AUDIO_TOTAL_BUF_SIZE/2;
 	USBD_AUDIO_HandleTypeDef   *haudio;
-
 	haudio = (USBD_AUDIO_HandleTypeDef *) pdev->pClassData;
 
 	// update transmit data buffer
 	if(haudio->out_rd_enable == 1U)
 	{
-		// start DMA transmit only if data received from USB
 		if(isDataReceivedFromUSB)
 		{
 			isDataReceivedFromUSB = 0U;
@@ -1403,6 +1375,25 @@ void USBD_AUDIO_UpdateBuffers(USBD_HandleTypeDef* pdev)
 		else
 		{
 			AUDIO_OUT_StopAndReset(pdev);
+		}
+	}
+	else
+	{
+		if(offset == AUDIO_OFFSET_HALF)
+		{
+			if(!isHalfOutBufferCleared)
+			{
+				isHalfOutBufferCleared = 1;
+				memset(haudio->out_buffer, 0, bufferSize<<1);
+			}
+		}
+		else if(offset == AUDIO_OFFSET_FULL)
+		{
+			if(!isFullOutBufferCleared)
+			{
+				isFullOutBufferCleared = 1;
+				memset(&haudio->out_buffer[bufferSize], 0, bufferSize<<1);
+			}
 		}
 	}
 }
