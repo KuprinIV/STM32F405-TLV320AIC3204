@@ -515,7 +515,6 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef* pdev, uint8_t cfgidx)
     {
       haudio->alt_setting[i] = 0;
     }
-    haudio->out_is_playing = 0;
     haudio->out_wr_ptr = 0;
     haudio->out_rd_ptr = 0;
     haudio->out_rd_enable = 0;
@@ -1009,7 +1008,8 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef* pdev,
   USBD_AUDIO_HandleTypeDef* haudio;
   haudio = (USBD_AUDIO_HandleTypeDef*)pdev->pClassData;
 
-  if (epnum == AUDIO_OUT_EP && is_out_ready) {
+  if (epnum == AUDIO_OUT_EP && is_out_ready)
+  {
     uint32_t curr_length = USBD_GetRxCount(pdev, epnum);
     /* Ignore strangely large packets */
 	uint32_t num_of_samples = 0;
@@ -1017,35 +1017,32 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef* pdev,
 
 	num_of_samples = curr_length / 4;
 
-	for (i = 0; i < num_of_samples; i++) {
+	for (i = 0; i < num_of_samples; i++)
+	{
 		/* Copy one sample */
 		haudio->out_buffer[haudio->out_wr_ptr] = (uint16_t)((haudio->out_packet_buffer[packet_data_ptr + 1] << 8)|(haudio->out_packet_buffer[packet_data_ptr]));
 		/* Rollback if reach end of buffer */
 		haudio->out_wr_ptr++;
-		if (haudio->out_wr_ptr == AUDIO_TOTAL_BUF_SIZE) {
+		if (haudio->out_wr_ptr == AUDIO_TOTAL_BUF_SIZE)
+		{
 			haudio->out_wr_ptr = 0;
 		}
 
 		haudio->out_buffer[haudio->out_wr_ptr] = (uint16_t)((haudio->out_packet_buffer[packet_data_ptr + 3] << 8)|(haudio->out_packet_buffer[packet_data_ptr + 2]));
 		/* Rollback if reach end of buffer */
 		haudio->out_wr_ptr++;
-		if (haudio->out_wr_ptr == AUDIO_TOTAL_BUF_SIZE) {
+		if (haudio->out_wr_ptr == AUDIO_TOTAL_BUF_SIZE)
+		{
 			haudio->out_wr_ptr = 0;
 		}
 
 		packet_data_ptr += 4;
 	}
 
-	/* Start playing when half of the audio buffer is filled */
-	if (!haudio->out_is_playing) {
-		if (haudio->out_wr_ptr >= AUDIO_TOTAL_BUF_SIZE / 2)
-		{
-			haudio->out_is_playing = 1;
-
-			if (haudio->out_rd_enable == 0) {
-				haudio->out_rd_enable = 1;
-			}
-		}
+	/* Start playing */
+	if (haudio->out_rd_enable == 0)
+	{
+		haudio->out_rd_enable = 1;
 	}
 	// set data received flag for starting DMA transmit
 	isDataReceivedFromUSB = 1;
@@ -1240,7 +1237,6 @@ static void AUDIO_OUT_StopAndReset(USBD_HandleTypeDef* pdev)
   haudio = (USBD_AUDIO_HandleTypeDef*)pdev->pClassData;
 
   haudio->out_rd_enable = 0;
-  haudio->out_is_playing = 0;
 
   isHalfOutBufferCleared = 0;
   isFullOutBufferCleared = 0;

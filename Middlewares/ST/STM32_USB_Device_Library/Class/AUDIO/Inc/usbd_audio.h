@@ -253,7 +253,6 @@ typedef struct
   uint32_t                  alt_setting[USBD_MAX_NUM_INTERFACES + 1];
   uint16_t*                 out_buffer;
   uint8_t* 					out_packet_buffer;
-  uint8_t				    out_is_playing;
   uint8_t                   out_rd_enable;
   uint16_t                  out_rd_ptr;
   uint16_t                  out_wr_ptr;
