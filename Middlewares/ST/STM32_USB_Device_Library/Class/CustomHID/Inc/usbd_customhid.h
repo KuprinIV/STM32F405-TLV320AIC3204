@@ -50,6 +50,8 @@ extern "C" {
 #define USB_CUSTOM_HID_CONFIG_DESC_SIZ       41U
 #define USB_CUSTOM_HID_DESC_SIZ              9U
 
+#define HID_CTRL_IF					 		 3U
+
 #ifndef CUSTOM_HID_HS_BINTERVAL
 #define CUSTOM_HID_HS_BINTERVAL            	 0x05U
 #endif /* CUSTOM_HID_HS_BINTERVAL */

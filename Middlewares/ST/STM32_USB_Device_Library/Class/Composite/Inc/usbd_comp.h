@@ -66,7 +66,6 @@ void USBD_COMP_AUDIO_UpdateBuffers(AUDIO_OffsetTypeDef offset);
 #define UAC                          0U
 #define HID                          1U
 #define USBD_COMP_CLASS              &USBD_COMP
-#define USB_COMP_CONFIG_DESC_SIZ     233U
-#define HID_CTRL_IF					 3U
+#define USB_COMP_CONFIG_DESC_SIZ     (USB_AUDIO_CONFIG_DESC_SIZ + USB_CUSTOM_HID_CONFIG_DESC_SIZ - 9U)
 
 #endif /* ST_STM32_USB_DEVICE_LIBRARY_CLASS_COMP_INC_USBD_COMP_H_ */
