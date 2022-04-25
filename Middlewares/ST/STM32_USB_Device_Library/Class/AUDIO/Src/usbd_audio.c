@@ -960,9 +960,9 @@ static uint8_t USBD_AUDIO_IsoINIncomplete(USBD_HandleTypeDef* pdev, uint8_t epnu
 	{
 		USB_CLEAR_INCOMPLETE_IN_EP(AUDIO_IN_EP);
 		USBD_LL_FlushEP(pdev, AUDIO_IN_EP);
-		if(haudio->in_packet_buffer_enable > 0)
+		if(haudio->in_packet_buffer_enable == 1)
 		{
-			USBD_LL_Transmit (pdev, AUDIO_IN_EP, haudio->in_packet_buffer, haudio->in_packet_size);
+			haudio->in_packet_buffer_enable = 2;
 		}
 	}
 
@@ -1015,6 +1015,13 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef* pdev,
 	uint32_t num_of_samples = 0;
 	uint32_t i, packet_data_ptr = 0;
 
+	/* Start playing */
+	if (haudio->out_rd_enable == 0)
+	{
+		haudio->out_rd_enable = 1;
+		AUDIO_OUT_Restart(pdev);
+	}
+
 	num_of_samples = curr_length / 4;
 
 	for (i = 0; i < num_of_samples; i++)
@@ -1039,11 +1046,6 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef* pdev,
 		packet_data_ptr += 4;
 	}
 
-	/* Start playing */
-	if (haudio->out_rd_enable == 0)
-	{
-		haudio->out_rd_enable = 1;
-	}
 	// set data received flag for starting DMA transmit
 	isDataReceivedFromUSB = 1;
 	USBD_LL_PrepareReceive(pdev, AUDIO_OUT_EP, haudio->out_packet_buffer, AUDIO_OUT_PACKET+16);
