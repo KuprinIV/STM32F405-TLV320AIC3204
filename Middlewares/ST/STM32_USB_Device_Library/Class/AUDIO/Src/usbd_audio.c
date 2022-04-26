@@ -502,7 +502,7 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef* pdev, uint8_t cfgidx)
    * device is not ready.
    */
   tx_flag = 1;
-  is_out_ready = 0;
+//  is_out_ready = 0;
 
   /* Allocate Audio structure */
   pdev->pClassData = (void*)USBD_malloc(sizeof(USBD_AUDIO_HandleTypeDef));
@@ -673,12 +673,12 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef* pdev,
             			haudio->alt_setting[AUDIO_OUT_IF] = (uint8_t) (req->wValue);
 						if (haudio->alt_setting[AUDIO_OUT_IF] == 1)
 						{
-							is_out_ready = 1;
+//							is_out_ready = 1;
 							AUDIO_OUT_Restart(pdev);
 						}
 						else
 						{
-							is_out_ready = 0;
+//							is_out_ready = 0;
 							tx_flag = 0;
 							AUDIO_OUT_StopAndReset(pdev);
 
@@ -803,7 +803,7 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
   static volatile uint16_t in_gap = 0;
 
   /* Do stuff only when playing */
-  if (haudio->out_rd_enable == 1 && is_out_ready == 1)
+  if (haudio->out_rd_enable == 1 /*&& is_out_ready == 1*/)
   {
 	// wait for stabilization of data pointers stabilization before calculating feedback data
 	/* Remaining writable buffer size */
@@ -1008,7 +1008,7 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef* pdev,
   USBD_AUDIO_HandleTypeDef* haudio;
   haudio = (USBD_AUDIO_HandleTypeDef*)pdev->pClassData;
 
-  if (epnum == AUDIO_OUT_EP && is_out_ready)
+  if (epnum == AUDIO_OUT_EP /*&& is_out_ready*/)
   {
     uint32_t curr_length = USBD_GetRxCount(pdev, epnum);
     /* Ignore strangely large packets */
