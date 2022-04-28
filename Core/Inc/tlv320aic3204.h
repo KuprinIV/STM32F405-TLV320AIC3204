@@ -21,6 +21,7 @@ typedef enum
 
 typedef struct
 {
+	void (*PowerOnOff)(uint8_t is_powered);
 	void (*InitInterface)(void);
 	void (*CodecInit)(void);
 	void (*DeInit)(void);

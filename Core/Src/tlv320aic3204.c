@@ -8,10 +8,20 @@ I2S_HandleTypeDef hi2s2;
 DMA_HandleTypeDef hdma_i2s2_ext_rx;
 DMA_HandleTypeDef hdma_spi2_tx;
 
-SPI_HandleTypeDef hspi1;
+I2C_HandleTypeDef hi2c2;
+
+uint8_t test = 0;
 
 static void writeRegister(uint8_t addr, uint8_t value);
 static uint8_t readRegister(uint8_t addr);
+
+/**
+ * @brief
+ * Power control of audio part
+ * @params
+ * is_powered - 0 - power off, 1 - power on
+ */
+static void tlv320aic3204_PowerOnOff(uint8_t is_powered);
 
 /**
  * @brief
@@ -115,6 +125,7 @@ static void tlv320aic3204_StartDataTransfer(uint16_t* tx_data, uint16_t* rx_data
 
 AudioCodecDrv tlv320aic3204_driver =
 {
+		tlv320aic3204_PowerOnOff,
 		tlv320aic3204_InterfaceInit,
 		tlv320aic3204_CodecInit,
 		tlv320aic3204_DeInit,
@@ -137,23 +148,33 @@ uint8_t interface_dir = 0; // output
 static void writeRegister(uint8_t addr, uint8_t value)
 {
 	uint8_t data[2] = {0};
-	data[0] = addr<<1;
+	data[0] = addr;
 	data[1] = value;
-	SPI1_SS_GPIO_Port->BSRR = SPI1_SS_Pin<<16;
-	HAL_SPI_Transmit(&hspi1, data, 2, 1000);
-	SPI1_SS_GPIO_Port->BSRR = SPI1_SS_Pin;
+
+	HAL_I2C_Master_Transmit(&hi2c2, 0x30, data, 2, 10000);
 }
 
 static uint8_t readRegister(uint8_t addr)
 {
-	uint8_t txData[2] = {0};
-	uint8_t rxData[2] = {0};
+	uint8_t txData = 0;
+	uint8_t rxData = 0;
 
-	txData[0] = (addr<<1) | 0x01; // set R/W bit
-	SPI1_SS_GPIO_Port->BSRR = SPI1_SS_Pin<<16;
-	HAL_SPI_TransmitReceive(&hspi1, txData, rxData, 2, 1000);
-	SPI1_SS_GPIO_Port->BSRR = SPI1_SS_Pin;
-	return rxData[1];
+	txData = addr;
+	HAL_I2C_Master_Transmit(&hi2c2, 0x30, &txData, 1, 10000); // send register address
+	HAL_I2C_Master_Receive(&hi2c2, 0x30, &rxData, 1, 10000); // receive register value
+	return rxData;
+}
+
+static void tlv320aic3204_PowerOnOff(uint8_t is_powered)
+{
+	if(is_powered)
+	{
+		AUD_EN_GPIO_Port->ODR |= AUD_EN_Pin; // enable audio part power supply
+	}
+	else
+	{
+		AUD_EN_GPIO_Port->ODR &= ~AUD_EN_Pin; // disable audio part power supply
+	}
 }
 
 static void tlv320aic3204_hardwareReset(void)
@@ -171,22 +192,19 @@ static void tlv320aic3204_hardwareReset(void)
 static void tlv320aic3204_InterfaceInit(void)
 {
 // codec control interface init
-	  /* SPI1 parameter configuration*/
-	  hspi1.Instance = SPI1;
-	  hspi1.Init.Mode = SPI_MODE_MASTER;
-	  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-	  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-	  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-	  hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
-	  hspi1.Init.NSS = SPI_NSS_SOFT;
-	  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
-	  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-	  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-	  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-	  hspi1.Init.CRCPolynomial = 10;
-	  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+	  /* I2C2 parameter configuration*/
+	  hi2c2.Instance = I2C2;
+	  hi2c2.Init.ClockSpeed = 100000;
+	  hi2c2.Init.DutyCycle = I2C_DUTYCYCLE_16_9;
+	  hi2c2.Init.OwnAddress1 = 0;
+	  hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+	  hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+	  hi2c2.Init.OwnAddress2 = 0;
+	  hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+	  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+	  if (HAL_I2C_Init(&hi2c2) != HAL_OK)
 	  {
-		Error_Handler();
+	    Error_Handler();
 	  }
 	
 	/* DMA controller clock enable */
@@ -273,8 +291,11 @@ static void tlv320aic3204_CodecInit(void)
 	// Power up the Left and Right DAC Channels with route the Left Audio digital data to
 	// Left Channel DAC and Right Audio digital data to Right Channel DAC, soft-step volume change enable
 	writeRegister(0x3F, 0xD5);
+	test = readRegister(0x3F);
 	// Unmute the DAC digital volume control
 	writeRegister(0x40, 0x00);
+	// enable out amplifier for loudspeakers
+	LS_EN_GPIO_Port->ODR |= LS_EN_Pin;
 
 //codec ADC init
 	// Initialize to Page 0
@@ -327,7 +348,7 @@ static void tlv320aic3204_DeInit(void)
 		 Error_Handler();
 	}
 	// de-init SPI1 codec control interface
-	if (HAL_SPI_Init(&hspi1) != HAL_OK)
+	if (HAL_I2C_DeInit(&hi2c2) != HAL_OK)
     {
 	  Error_Handler();
     }
@@ -342,10 +363,10 @@ static void tlv320aic3204_selectOutputs(OutputsType outputs)
 {
 	if(currentOutputs != outputs)
 	{
-		// change current outputs
-		currentOutputs = outputs;
 		// enable outputs mute
 		tlv320aic3204_muteControl(1);
+		// change current outputs
+		currentOutputs = outputs;
 		// Select Page 1
 		writeRegister(PAGE_SELECT_REGISTER, 0x01);
 		switch(outputs)
@@ -457,6 +478,15 @@ static void tlv320aic3204_muteControl(uint8_t is_enabled)
 			reg_value = readRegister(0x13) & 0xBF; // reset mute bit
 			reg_value |= (is_enabled << 6); // set value for mute bit
 			writeRegister(0x13, reg_value);
+
+			if(is_enabled)
+			{
+				LS_EN_GPIO_Port->ODR &= ~LS_EN_Pin; // disable out amplifier
+			}
+			else
+			{
+				LS_EN_GPIO_Port->ODR |= LS_EN_Pin; // enable out amplifier
+			}
 			break;
 	}
 }

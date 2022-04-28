@@ -24,7 +24,7 @@
 
 /* USER CODE BEGIN INCLUDE */
 #include "tlv320aic3204.h"
-#include "main.h"
+#include "keyboard.h"
 #include "usbd_comp.h"
 /* USER CODE END INCLUDE */
 
@@ -151,6 +151,7 @@ USBD_AUDIO_ItfTypeDef USBD_AUDIO_fops_FS =
 static int8_t AUDIO_Init_FS(uint32_t AudioFreq, uint32_t Volume, uint32_t options)
 {
   /* USER CODE BEGIN 0 */
+  tlv320aic3204_drv->PowerOnOff(1);
   tlv320aic3204_drv->InitInterface();
   tlv320aic3204_drv->CodecInit();
 
@@ -168,6 +169,7 @@ static int8_t AUDIO_DeInit_FS(uint32_t options)
 {
   /* USER CODE BEGIN 1 */
   tlv320aic3204_drv->DeInit();
+  tlv320aic3204_drv->PowerOnOff(0);
   return (USBD_OK);
   /* USER CODE END 1 */
 }

@@ -26,7 +26,7 @@
 #include "usbd_comp.h"
 #include "tlv320aic3204.h"
 #include "bt121.h"
-#include "main.h"
+#include "keyboard.h"
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/

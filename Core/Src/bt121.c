@@ -1,4 +1,5 @@
 #include "bt121.h"
+#include "keyboard.h"
 #include "main.h"
 #include <string.h>
 
@@ -31,7 +32,7 @@ uint8_t is_hid_connected = 0;
 volatile uint8_t is_boot_enabled = 0; // BT boot mode state
 volatile uint8_t is_transfer_ended = 0; // transfer end event flag
 
-extern UART_HandleTypeDef huart2;
+extern UART_HandleTypeDef huart3;
 
 BT121_Drv bt121_drv_ctrl =
 {
@@ -58,7 +59,7 @@ static void BT121_Init(void)
   // reset BT module
   BT121_Reset();
   // start data reception
-  HAL_UARTEx_ReceiveToIdle_IT(&huart2, data_buffer, sizeof(data_buffer));
+  HAL_UARTEx_ReceiveToIdle_IT(&huart3, data_buffer, sizeof(data_buffer));
 }
 
 /**
@@ -101,7 +102,7 @@ static uint8_t BT121_BootModeCtrl(uint8_t mode)
 	{
 		is_boot_enabled = mode;
 		// reconfigure UART interface
-		ret = BT121_ReconfigureUART(&huart2, mode);
+		ret = BT121_ReconfigureUART(&huart3, mode);
 		if(ret != HAL_OK)
 		{
 			return ret;
@@ -117,13 +118,13 @@ static uint8_t BT121_BootModeCtrl(uint8_t mode)
 		if(mode) // if boot mode enabled
 		{
 			// send auto baudrate set byte
-			ret = HAL_UART_Transmit(&huart2, &auto_br_byte, 1, 1000);
+			ret = HAL_UART_Transmit(&huart3, &auto_br_byte, 1, 1000);
 			if(ret != HAL_OK)
 			{
 				return HAL_ERROR;
 			}
 			// wait ACK answer from BT module
-			ret = HAL_UARTEx_ReceiveToIdle(&huart2, &bt_ack_state, 1, &rxLen, 1000);
+			ret = HAL_UARTEx_ReceiveToIdle(&huart3, &bt_ack_state, 1, &rxLen, 1000);
 			if(bt_ack_state == ACK)
 			{
 				result = HAL_OK;
@@ -136,7 +137,7 @@ static uint8_t BT121_BootModeCtrl(uint8_t mode)
 		else
 		{
 			// start data reception
-			HAL_UARTEx_ReceiveToIdle_IT(&huart2, data_buffer, sizeof(data_buffer));
+			HAL_UARTEx_ReceiveToIdle_IT(&huart3, data_buffer, sizeof(data_buffer));
 			result = HAL_OK;
 		}
 	}
@@ -163,18 +164,18 @@ static uint8_t BT121_WriteBootCmd(uint8_t cmd)
 	// try 3 attempts to send command
 	for(uint8_t i = 0; i < 3; i++)
 	{
-		ret = HAL_UART_Transmit(&huart2, command_data, 2, 1000);
+		ret = HAL_UART_Transmit(&huart3, command_data, 2, 1000);
 		if(ret != HAL_OK)
 		{
-			HAL_UART_AbortTransmit(&huart2);
+			HAL_UART_AbortTransmit(&huart3);
 			continue;
 		}
 
 		// wait ACK answer from BT module
-		ret = HAL_UARTEx_ReceiveToIdle(&huart2, &bt_ack_state, 1, &rxLen, 1000);
+		ret = HAL_UARTEx_ReceiveToIdle(&huart3, &bt_ack_state, 1, &rxLen, 1000);
 		if(ret != HAL_OK)
 		{
-			HAL_UART_AbortReceive(&huart2);
+			HAL_UART_AbortReceive(&huart3);
 			continue;
 		}
 		if(bt_ack_state == ACK)
@@ -227,13 +228,13 @@ static uint8_t BT121_WriteBootData(uint8_t *pfirst_byte, uint8_t *pbuff, uint16_
 	out_data[size+offset] = lrc;
 
 	// transmit data to BT121 module
-	ret = HAL_UART_Transmit(&huart2, out_data, size+1+offset, 1000);
+	ret = HAL_UART_Transmit(&huart3, out_data, size+1+offset, 1000);
 	if(ret != HAL_OK)
 	{
 		return ret;
 	}
 	// wait ACK answer from BT module
-	ret = HAL_UARTEx_ReceiveToIdle(&huart2, &bt_ack_state, 1, &rxLen, 100000); // long 100 sec delay for flash mass erase operation
+	ret = HAL_UARTEx_ReceiveToIdle(&huart3, &bt_ack_state, 1, &rxLen, 100000); // long 100 sec delay for flash mass erase operation
 	if(bt_ack_state == ACK)
 	{
 		return HAL_OK;
@@ -259,7 +260,7 @@ static uint8_t BT121_GetCmdsList(FLASH_ERASE_TYPE *pflash_erase_type)
 	if(res != HAL_OK)
 		return res;
 	// get command result
-	ret = HAL_UARTEx_ReceiveToIdle(&huart2, input_data, 512, &rxLen, 1000);
+	ret = HAL_UARTEx_ReceiveToIdle(&huart3, input_data, 512, &rxLen, 1000);
 	if(ret != HAL_OK)
 	{
 		return ret;
@@ -298,7 +299,7 @@ static uint8_t BT121_ReconfigureUART(UART_HandleTypeDef* huart, uint8_t boot_mod
 {
 	uint8_t ret;
 	// abort current UART receive operation
-	ret = HAL_UART_AbortReceive_IT(&huart2);
+	ret = HAL_UART_AbortReceive_IT(&huart3);
 	if(ret != HAL_OK)
 	{
 		return ret;
@@ -446,7 +447,7 @@ static uint8_t BT121_FlashVerify(uint32_t flash_addr, uint8_t* check_data, uint1
 		return BT_VERIFY_BOOT_CMD_ERROR;
 
 	// read data from flash memory
-	res = HAL_UARTEx_ReceiveToIdle(&huart2, input_data, check_data_size, &rxLen, 10000);
+	res = HAL_UARTEx_ReceiveToIdle(&huart3, input_data, check_data_size, &rxLen, 10000);
 	if(res != HAL_OK || rxLen != check_data_size)
 	{
 		return BT_VERIFY_BOOT_READ_DATA_ERROR;
@@ -480,7 +481,7 @@ static void BT121_SendInputReport(uint8_t report_id, uint8_t* report_data, uint8
 
 	memcpy(temp_data+2, report_data, (report_length <= 8) ? (report_length) : (8));
 
-	ret = HAL_UART_Transmit(&huart2, temp_data, (report_length <= 8) ? (report_length + 2) : (10), 1000);
+	ret = HAL_UART_Transmit(&huart3, temp_data, (report_length <= 8) ? (report_length + 2) : (10), 1000);
 	if(ret != HAL_OK)
 	{
 		Error_Handler();
@@ -510,7 +511,7 @@ static void BT121_DeleteBonding(void)
 	cmd_data[0] = BT_COMMAND_DATA_HEADER; // command data header
 	cmd_data[1] = BT_DELETE_BONDING_CMD;  // delete bonding command
 
-	ret = HAL_UART_Transmit(&huart2, cmd_data, 2, 1000);
+	ret = HAL_UART_Transmit(&huart3, cmd_data, 2, 1000);
 	if(ret != HAL_OK)
 	{
 		Error_Handler();
@@ -575,7 +576,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 			break;
 	}
 
-    HAL_UARTEx_ReceiveToIdle_IT(&huart2, data_buffer, sizeof(data_buffer)); // prepare to receive next data
+    HAL_UARTEx_ReceiveToIdle_IT(&huart3, data_buffer, sizeof(data_buffer)); // prepare to receive next data
 }
 
 /**
