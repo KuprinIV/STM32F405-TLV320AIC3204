@@ -327,7 +327,7 @@ static void tlv320aic3204_DeInit(void)
 		 Error_Handler();
 	}
 	// de-init SPI1 codec control interface
-	if (HAL_SPI_Init(&hspi1) != HAL_OK)
+	if (HAL_SPI_DeInit(&hspi1) != HAL_OK)
     {
 	  Error_Handler();
     }
@@ -342,10 +342,10 @@ static void tlv320aic3204_selectOutputs(OutputsType outputs)
 {
 	if(currentOutputs != outputs)
 	{
-		// change current outputs
-		currentOutputs = outputs;
 		// enable outputs mute
 		tlv320aic3204_muteControl(1);
+		// change current outputs
+		currentOutputs = outputs;
 		// Select Page 1
 		writeRegister(PAGE_SELECT_REGISTER, 0x01);
 		switch(outputs)
