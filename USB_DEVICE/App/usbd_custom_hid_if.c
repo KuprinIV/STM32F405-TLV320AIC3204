@@ -251,6 +251,7 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t report_num)
 {
   /* USER CODE BEGIN 6 */
 	uint8_t inputData[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE]= {0};
+	uint32_t color_grb = 0;
 	USBD_CUSTOM_HID_HandleTypeDef  *hhid = (USBD_CUSTOM_HID_HandleTypeDef*)hUsbDeviceFS.pClassData;
 	memcpy(inputData, hhid->Report_buf, USBD_CUSTOMHID_OUTREPORT_BUF_SIZE);
 
@@ -259,6 +260,11 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t report_num)
 		case 3:
 			tlv320aic3204_drv->SelectOutput(inputData[2] & 0x01); // select codec's outputs
 			tlv320aic3204_drv->SelectInput(inputData[3] & 0x01); // select codec's input
+			break;
+
+		case 4:
+			color_grb = (inputData[1]<<16)|(inputData[2]<<8)|inputData[3];
+			kbState->SetFrontLedColor(color_grb); // set front LED color
 			break;
 		
 		case 5:

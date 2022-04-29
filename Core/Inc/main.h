@@ -96,7 +96,7 @@ void Error_Handler(void);
 #define BT_BOOT_GPIO_Port GPIOC
 #define BT_RST_Pin GPIO_PIN_2
 #define BT_RST_GPIO_Port GPIOD
-#define LED_Pin GPIO_PIN_9
+#define LED_Pin GPIO_PIN_6
 #define LED_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 

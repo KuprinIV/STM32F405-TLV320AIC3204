@@ -7,11 +7,14 @@ static void setStateLedColor(StateLedColors color);
 static void scanKeyboard(void);
 static void StartTimer(void);
 
+extern TIM_HandleTypeDef htim4;
+
 KeyboardState keyboardState;
 KeyboardState *kbState;
 
 uint8_t prev_kb_state = 0x3F;
 uint8_t bt64bFwPacket[64] = {0xFF};
+volatile uint16_t LEDs_fb[LEDS_COUNT][24] = {0}; // LEDs data framebuffer
 
 void initKeyboardState(void)
 {
@@ -33,9 +36,23 @@ void initKeyboardState(void)
 	  kbState = &keyboardState;
 }
 
-static void setFrontLedColor(uint32_t color)
+static void setFrontLedColor(uint32_t color_grb)
 {
+	// fill LEDs framebuffer
+	for(uint8_t i = 0; i < LEDS_COUNT; i++)
+	{
+		for(uint8_t j = 0; j < 24; j++)
+		{
+			LEDs_fb[i][j] = (((color_grb>>(23-j)) & 0x01)) ? (BIT1) : (BIT0);
+		}
+	}
+	// start data transfer
+	DMA1_Stream0->M0AR = (uint32_t)LEDs_fb;
+	DMA1_Stream0->NDTR = LEDS_COUNT*24; // set burst data size
+	DMA1_Stream0->CR |= DMA_SxCR_EN; // enable DMA
 
+	TIM4->CCMR1 |= TIM_CCMR1_OC1M_2|TIM_CCMR1_OC1M_1; // set PWM mode 1
+	TIM4->CR1 |= TIM_CR1_CEN; // TIM4 enable
 }
 
 static void setStateLedColor(StateLedColors color)

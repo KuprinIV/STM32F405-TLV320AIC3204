@@ -50,7 +50,7 @@ DMA_HandleTypeDef hdma_adc1;
 
 TIM_HandleTypeDef htim4;
 TIM_HandleTypeDef htim8;
-DMA_HandleTypeDef hdma_tim4_up;
+DMA_HandleTypeDef hdma_tim4_ch1;
 
 UART_HandleTypeDef huart3;
 
@@ -66,7 +66,6 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_USART3_UART_Init(void);
-static void MX_TIM4_Init(void);
 static void MX_TIM8_Init(void);
 /* USER CODE BEGIN PFP */
 static void MX_Timers_Init(void);
@@ -118,7 +117,6 @@ int main(void)
   MX_USB_DEVICE_Init();
   MX_ADC1_Init();
   MX_USART3_UART_Init();
-  MX_TIM4_Init();
   MX_TIM8_Init();
   /* USER CODE BEGIN 2 */
   bt121_drv->Init();
@@ -422,65 +420,6 @@ static void MX_ADC1_Init(void)
 }
 
 /**
-  * @brief TIM4 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM4_Init(void)
-{
-
-  /* USER CODE BEGIN TIM4_Init 0 */
-
-  /* USER CODE END TIM4_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
-
-  /* USER CODE BEGIN TIM4_Init 1 */
-
-  /* USER CODE END TIM4_Init 1 */
-  htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 0;
-  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 47;
-  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM4_Init 2 */
-
-  /* USER CODE END TIM4_Init 2 */
-  HAL_TIM_MspPostInit(&htim4);
-
-}
-
-/**
   * @brief TIM8 Initialization Function
   * @param None
   * @retval None
@@ -570,9 +509,9 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_Stream6_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
+  /* DMA1_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
   /* DMA2_Stream0_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
@@ -643,6 +582,16 @@ static void MX_GPIO_Init(void)
    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
    GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+   /**TIM4 GPIO Configuration
+   PB6     ------> TIM4_CH1
+   */
+   GPIO_InitStruct.Pin = LED_Pin;
+   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+   GPIO_InitStruct.Alternate = GPIO_AF2_TIM4;
+   HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
 }
 
 /* USER CODE BEGIN 4 */
@@ -688,6 +637,21 @@ static void MX_Timers_Init(void)
 	TIM2->OR |= TIM_OR_ITR1_RMP_1; // OTG FS SOF is connected to the TIM2_ITR1 input
 	TIM2->CCER |= TIM_CCER_CC1E; // Capture enabled
 	TIM2->CR1 |= TIM_CR1_CEN; // Counter enabled
+
+	//TIM4 channel 1 init in PWM mode 1 for front LED color setting
+	RCC->APB1ENR |= RCC_APB1ENR_TIM4EN; // TIM4 clock enable
+	TIM4->CCER |= TIM_CCER_CC1E;// TIM4 channel 1 enable
+	TIM4->CCER &= ~TIM_CCER_CC1P;// polarity: active high
+	TIM4->CCMR1 |= TIM_CCMR1_OC1M_2|TIM_CCMR1_OC1M_1|TIM_CCMR1_OC1PE;// PWM mode 1 and enable preload register
+	TIM4->CR1 |= TIM_CR1_ARPE; // auto-reload preload register enable
+	TIM4->DIER |= TIM_DIER_CC1DE; // enable DMA requests for channel 1
+	TIM4->PSC = 0;  // period
+	TIM4->ARR = 59; // of signal
+	TIM4->BDTR |= TIM_BDTR_MOE; // master output enable
+	// DMA enable
+	RCC->AHB1ENR |= RCC_AHB1ENR_DMA1EN; // DMA clock enable
+	DMA1_Stream0->PAR = (uint32_t)&TIM4->CCR1;
+	DMA1_Stream0->CR |= (DMA_SxCR_CHSEL_1|DMA_SxCR_MSIZE_0|DMA_SxCR_PSIZE_0|DMA_SxCR_MINC|DMA_SxCR_DIR_0|DMA_SxCR_TCIE);
 }
 /* USER CODE END 4 */
 

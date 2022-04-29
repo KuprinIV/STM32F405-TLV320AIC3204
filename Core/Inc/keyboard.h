@@ -3,12 +3,18 @@
 
 #include <stdint.h>
 
-#define KEY_1_MASK 0x01
-#define KEY_2_MASK 0x02
-#define KEY_3_MASK 0x04
-#define KEY_4_MASK 0x08
-#define KEY_5_MASK 0x10
-#define KEY_6_MASK 0x20
+#define KEY_1_MASK 					0x01
+#define KEY_2_MASK 					0x02
+#define KEY_3_MASK 					0x04
+#define KEY_4_MASK 					0x08
+#define KEY_5_MASK 					0x10
+#define KEY_6_MASK 					0x20
+
+// WS2812B LEDs count
+#define LEDS_COUNT 					4
+// digital "0" and "1" pulses length for WS2812B
+#define BIT0 						19
+#define BIT1 						40
 
 typedef enum
 {
