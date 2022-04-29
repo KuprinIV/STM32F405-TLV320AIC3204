@@ -43,6 +43,21 @@ typedef struct
 	void (*ScanKeyboard)(void);
 }KeyboardState;
 
+typedef struct
+{
+	// horizontal axis calibration parameters
+	uint16_t h_max;
+	uint16_t h_min;
+	uint16_t h_zero;
+	// vertical axis calibration parameters
+	uint16_t v_max;
+	uint16_t v_min;
+	uint16_t v_zero;
+	// current position
+	uint16_t h_value;
+	uint16_t v_value;
+}JoystickData;
+
 extern KeyboardState *kbState;
 
 void initKeyboardState(void);

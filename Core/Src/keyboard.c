@@ -1,6 +1,7 @@
 #include "keyboard.h"
 #include "main.h"
 #include "usbd_comp.h"
+#include "tlv320aic3204.h"
 
 static void setFrontLedColor(uint32_t color);
 static void setStateLedColor(StateLedColors color);
@@ -8,13 +9,19 @@ static void scanKeyboard(void);
 static void StartTimer(void);
 
 extern TIM_HandleTypeDef htim4;
+extern TIM_HandleTypeDef htim8;
+extern ADC_HandleTypeDef hadc1;
 
 KeyboardState keyboardState;
 KeyboardState *kbState;
 
+JoystickData joystickLeft = {3755, 340, 2048, 3755, 340, 2048, 2048, 2048}; // default values from schematic
+JoystickData joystickRight = {3755, 340, 2048, 3755, 340, 2048, 2048, 2048}; // default values from schematic
+
 uint8_t prev_kb_state = 0x3F;
 uint8_t bt64bFwPacket[64] = {0xFF};
-volatile uint16_t LEDs_fb[LEDS_COUNT][24] = {0}; // LEDs data framebuffer
+uint16_t LEDs_fb[LEDS_COUNT][24] = {0}; // LEDs data framebuffer
+uint16_t adcSamples[5] = {0}; // IN6 - J1_AV; IN7 - J1_AH; IN12 - HP_DET; IN14 - J2_AV; IN15 - J2_AH
 
 void initKeyboardState(void)
 {
@@ -34,6 +41,10 @@ void initKeyboardState(void)
 	  keyboardState.ScanKeyboard = scanKeyboard;
 
 	  kbState = &keyboardState;
+
+	  // start ADC conversion
+	  HAL_TIM_Base_Start(&htim8);
+	  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcSamples, 5);
 }
 
 static void setFrontLedColor(uint32_t color_grb)
@@ -119,4 +130,15 @@ static void scanKeyboard(void)
 static void StartTimer(void)
 {
 	TIM7->CR1 |= TIM_CR1_CEN;
+}
+
+// get analog channels data
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+{
+	UNUSED(hadc);
+	joystickLeft.h_value = adcSamples[1];
+	joystickLeft.v_value = adcSamples[0];
+
+	joystickRight.h_value = adcSamples[4];
+	joystickRight.v_value = adcSamples[3];
 }
