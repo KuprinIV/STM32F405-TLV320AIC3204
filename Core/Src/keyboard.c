@@ -156,24 +156,16 @@ static uint8_t scanKeyboard(void)
 	  }
 	}
 
-	// check left joystick position
-	if(isJoystickPositionChanged(&joystickLeft) || needToSendReport)
+	// check joysticks position
+	if(isJoystickPositionChanged(&joystickLeft) || isJoystickPositionChanged(&joystickRight) || needToSendReport)
 	{
 		// calculate joysticks position
 		calcJoystickCoords(&joystickLeft, &j1_h, &j1_v);
-		// add joystick position to report data
+		calcJoystickCoords(&joystickRight, &j2_h, &j2_v);
+
+		// add joysticks position to report data
 		reportData[3] = (uint8_t)j1_h;
 		reportData[4] = (uint8_t)j1_v;
-
-		needToSendReport = 1;
-	}
-
-	// check right joystick position
-	if(isJoystickPositionChanged(&joystickRight) || needToSendReport)
-	{
-		// calculate joysticks position
-		calcJoystickCoords(&joystickRight, &j2_h, &j2_v);
-		// add joystick position to report data
 		reportData[5] = (uint8_t)j2_h;
 		reportData[6] = (uint8_t)j2_v;
 
