@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
+#define BT_SLEEP_DELAY 					2400 // 60 sec (in 25 ms steps)
+#define BT_FW_PACKET_SIZE 				128
+
 #define BT_CONNECTION_STATUS_HEADER  	0x81
 #define BT_OUTPUT_REPORT_DATA_HEADER 	0x82
 #define BT_INPUT_REPORT_DATA_HEADER  	0x01
@@ -16,24 +19,24 @@
 #define ACK 0x79
 #define NACK 0x1F
 
-#define BOOT_CMD_GET_CMD        0x00
-#define BOOT_CMD_GET_VS         0x01
-#define BOOT_CMD_GET_ID         0x02
-#define BOOT_CMD_RD_MEM         0x11
-#define BOOT_CMD_GO             0x21
-#define BOOT_CMD_WR_MEM         0x31
-#define BOOT_CMD_ERASE          0x43
-#define BOOT_CMD_ERASE_EX       0x44
-#define BOOT_CMD_WR_PROT        0x63
-#define BOOT_CMD_WR_UNPROT      0x73
-#define BOOT_CMD_RD_PROT        0x82
-#define BOOT_CMD_RD_UNPROT      0x92
+#define BOOT_CMD_GET_CMD        		0x00
+#define BOOT_CMD_GET_VS         		0x01
+#define BOOT_CMD_GET_ID         		0x02
+#define BOOT_CMD_RD_MEM         		0x11
+#define BOOT_CMD_GO             		0x21
+#define BOOT_CMD_WR_MEM         		0x31
+#define BOOT_CMD_ERASE          		0x43
+#define BOOT_CMD_ERASE_EX       		0x44
+#define BOOT_CMD_WR_PROT        		0x63
+#define BOOT_CMD_WR_UNPROT      		0x73
+#define BOOT_CMD_RD_PROT        		0x82
+#define BOOT_CMD_RD_UNPROT      		0x92
 
 typedef enum {
   FLASH_ERASE_UNDEF,
   FLASH_ERASE_OLD,
   FLASH_ERASE_EXT
-} FLASH_ERASE_TYPE;
+}FLASH_ERASE_TYPE;
 
 typedef enum
 {
@@ -51,24 +54,29 @@ typedef enum
 	BT_VERIFY_ADDRESS_ERROR = 0x08,
 	BT_VERIFY_BOOT_READ_DATA_ERROR = 0x09,
 	BT_FLASH_DATA_UNMATCH = 0x0A,
-
 }BT121_FlashErrors;
+
+typedef struct
+{
+	uint8_t isBtFwUpdateStarted;
+	uint8_t isBtReadyToReceiveNextPacket;
+	uint8_t startBTBootMode;
+	uint8_t stopBTBootMode;
+	uint8_t* btFwPacket64b;
+}BT121_FwUpdateVars;
 
 typedef struct
 {
 	void (*Init)(void);
 	void (*Reset)(void);
 	void (*SetEnabled)(uint8_t is_enabled);
-	uint8_t (*BootModeCtrl)(uint8_t mode);
 	void (*SendInputReport)(uint8_t report_id, uint8_t* report_data, uint8_t report_length);
 	uint8_t (*IsHID_EndpointConnected)(void);
 	void (*DeleteBonding)(void);
-	uint8_t (*IsBootModeEnabled)(void);
-	uint8_t (*BT_FlashErase)(void);
-	uint8_t (*BT_FlashWrite)(uint32_t flash_addr, uint8_t* data, uint16_t size);
-	uint8_t (*BT_FlashVerify)(uint32_t flash_addr, uint8_t* check_data, uint16_t check_data_size);
+	void (*UpdateFirmware)(void);
 }BT121_Drv;
 
 extern BT121_Drv *bt121_drv;
+extern BT121_FwUpdateVars *bt121_fw_update;
 
 #endif

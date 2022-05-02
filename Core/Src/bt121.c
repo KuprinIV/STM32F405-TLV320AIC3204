@@ -1,6 +1,7 @@
 #include "bt121.h"
 #include "keyboard.h"
 #include "main.h"
+#include "usbd_comp.h"
 #include <string.h>
 
 // driver functions
@@ -11,11 +12,12 @@ static uint8_t BT121_BootModeCtrl(uint8_t mode);
 static void BT121_SendInputReport(uint8_t report_id, uint8_t* report_data, uint8_t report_length);
 static uint8_t BT121_IsHID_EndpointConnected(void);
 static void BT121_DeleteBonding(void);
-static uint8_t BT121_IsBootModeEnabled(void);
+static void BT121_UpdateFirmware(void);
+
+// inner functions
 static uint8_t BT121_FlashErase(void);
 static uint8_t BT121_FlashWrite(uint32_t flash_addr, uint8_t* data, uint16_t size);
 static uint8_t BT121_FlashVerify(uint32_t flash_addr, uint8_t* check_data, uint16_t check_data_size);
-// inner functions
 static void BT121_ProcessOutputReport(uint8_t report_id, uint8_t* report_data, uint8_t report_length);
 static uint8_t BT121_WriteBootCmd(uint8_t cmd);
 static uint8_t BT121_WriteBootData(uint8_t *pfirst_byte, uint8_t *pbuff, uint16_t size);
@@ -26,30 +28,36 @@ static uint8_t BT121_ReconfigureUART(UART_HandleTypeDef* huart, uint8_t boot_mod
 static uint8_t data_buffer[11];
 
 /** HID connection params */
-uint8_t is_hid_connected = 0;
+static uint8_t is_hid_connected = 0;
 
 /** BT inner parameters */
 volatile uint8_t is_boot_enabled = 0; // BT boot mode state
 volatile uint8_t is_transfer_ended = 0; // transfer end event flag
 
+static uint8_t btFwDataPacket[BT_FW_PACKET_SIZE] = {0xFF};
+static uint8_t outBootStateData[2] = {0x07, 0x00};
+static uint8_t packet_64b_cntr = 0;
+static uint32_t btStartFlashAddr = BT_START_FLASH_ADDR;
+
 extern UART_HandleTypeDef huart3;
+
+BT121_FwUpdateVars bt121_fw_update_struct = {0, 0, 0, 0, btFwDataPacket};
 
 BT121_Drv bt121_drv_ctrl =
 {
 		BT121_Init,
 		BT121_Reset,
 		BT121_SetEnabled,
-		BT121_BootModeCtrl,
 		BT121_SendInputReport,
 		BT121_IsHID_EndpointConnected,
 		BT121_DeleteBonding,
-		BT121_IsBootModeEnabled,
-		BT121_FlashErase,
-		BT121_FlashWrite,
-		BT121_FlashVerify,
+		BT121_UpdateFirmware,
 };
 // init external driver structure
 BT121_Drv *bt121_drv = &bt121_drv_ctrl;
+
+// init module firmware update struct
+BT121_FwUpdateVars *bt121_fw_update = &bt121_fw_update_struct;
 
 /**
  * @brief Init BT121 module and BGAPI
@@ -520,15 +528,97 @@ static void BT121_DeleteBonding(void)
 }
 
 /**
- * @brief Get BT mode boot mode state
- * @return
- * 0 - boot mode disabled, 1 - boot mode enabled
+ * @brief Make firmware update of BT121 task
  */
-static uint8_t BT121_IsBootModeEnabled(void)
+static void BT121_UpdateFirmware(void)
 {
-	return is_boot_enabled;
-}
+	  uint8_t res;
+	  // set BT to boot mode
+	  if(bt121_fw_update->startBTBootMode)
+	  {
+		  bt121_fw_update->startBTBootMode = 0;
+		  res = BT121_BootModeCtrl(1); // BT boot mode control
+		  if(res == HAL_OK)
+		  {
+			  res = BT121_FlashErase();
+			  if(res == HAL_OK)
+			  {
+				  outBootStateData[1] = 0x7F;
+				  btStartFlashAddr = BT_START_FLASH_ADDR;
+			  }
+			  else
+			  {
+				  outBootStateData[1] = res;
+			  }
+		  }
+		  else
+		  {
+			  outBootStateData[1] = res;
+		  }
+		  USBD_COMP_HID_SendReport_FS(outBootStateData, 2); // send transfer result of firmware packet to BT
+	  }
+//	   exit BT from boot mode
+	  if(bt121_fw_update->stopBTBootMode)
+	  {
+		  bt121_fw_update->stopBTBootMode = 0;
+		  bt121_fw_update->isBtFwUpdateStarted = 0;
+		  btStartFlashAddr = BT_START_FLASH_ADDR;
+		  BT121_BootModeCtrl(0); // BT boot mode control
 
+	  }
+//	   handle BT firmware update data transfer
+	  if(bt121_fw_update->isBtFwUpdateStarted)
+	  {
+		  if(!bt121_fw_update->isBtReadyToReceiveNextPacket)
+		  {
+			  bt121_fw_update->isBtReadyToReceiveNextPacket = 1;
+
+			  if(packet_64b_cntr < ((BT_FW_PACKET_SIZE>>6)-1))
+			  {
+				  memcpy(btFwDataPacket+(packet_64b_cntr<<6), bt121_fw_update->btFwPacket64b, 64);
+				  packet_64b_cntr++;
+
+				  outBootStateData[0] = 0x07;
+				  outBootStateData[1] = HAL_OK; // set success state
+				  USBD_COMP_HID_SendReport_FS(outBootStateData, 2); // send transfer result of firmware packet to BT
+			  }
+			  else
+			  {
+				  memcpy(btFwDataPacket+(packet_64b_cntr<<6), bt121_fw_update->btFwPacket64b, 64);
+				  packet_64b_cntr = 0;
+
+				  res = BT121_FlashWrite(btStartFlashAddr, btFwDataPacket, BT_FW_PACKET_SIZE);
+				  if(res == HAL_OK)
+				  {
+					  // verify flash data
+					  res = BT121_FlashVerify(btStartFlashAddr, btFwDataPacket, BT_FW_PACKET_SIZE);
+					  if(res == HAL_OK)
+					  {
+						  btStartFlashAddr += BT_FW_PACKET_SIZE;
+
+						  outBootStateData[0] = 0x07;
+						  outBootStateData[1] = HAL_OK; // set success state
+						  USBD_COMP_HID_SendReport_FS(outBootStateData, 2); // send transfer result of firmware packet to BT
+					  }
+					  else
+					  {
+						  outBootStateData[0] = 0x07;
+						  outBootStateData[1] = res; // set error state, because error occurred during flash data verification
+						  bt121_fw_update->stopBTBootMode = 1;
+						  USBD_COMP_HID_SendReport_FS(outBootStateData, 2); // send transfer result of firmware packet to BT
+					  }
+				  }
+				  else
+				  {
+					  outBootStateData[0] = 0x07;
+					  outBootStateData[1] = res; // set error state, because error occurred during flash write
+					  bt121_fw_update->stopBTBootMode = 1;
+					  USBD_COMP_HID_SendReport_FS(outBootStateData, 2); // send transfer result of firmware packet to BT
+				  }
+			  }
+		  }
+	  }
+}
 
 /**
  * @brief Process output HID report from BT121

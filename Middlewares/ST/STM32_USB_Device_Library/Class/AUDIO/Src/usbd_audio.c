@@ -819,6 +819,7 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
 	}
 
 	/* Monitor remaining writable buffer size with LED */
+#ifdef USE_BUFFERS_STATE_INDICATION
 	if (audio_out_buf_writable_size < AUDIO_BUF_SAFEZONE)
 	{
 		LED_G_GPIO_Port->ODR |= LED_G_Pin;
@@ -827,6 +828,7 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
 	{
 		LED_G_GPIO_Port->ODR &= ~LED_G_Pin;
 	}
+#endif
 
 	shift = 0;
 	gap = (haudio->out_wr_ptr - haudio->out_rd_ptr);
@@ -892,19 +894,25 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
 	    if(audio_buf_writable_size >= (3*(AUDIO_TOTAL_BUF_SIZE>>3) + in_gap) && audio_buf_writable_size <= (5*(AUDIO_TOTAL_BUF_SIZE>>3) - in_gap))
 	    {
 	    	haudio->in_packet_size = AUDIO_IN_PACKET;
+#ifdef USE_BUFFERS_STATE_INDICATION
 	    	LED_R_GPIO_Port->ODR &= ~LED_R_Pin;
+#endif
 	    	in_gap = 0;
 	    }
 	    else if(audio_buf_writable_size < 3*(AUDIO_TOTAL_BUF_SIZE>>3) + in_gap)
 	    {
 	    	haudio->in_packet_size = AUDIO_IN_PACKET-2;
+#ifdef USE_BUFFERS_STATE_INDICATION
 	    	LED_R_GPIO_Port->ODR ^= LED_R_Pin;
+#endif
 	    	in_gap = AUDIO_TOTAL_BUF_SIZE>>4;
 	    }
 	    else if(audio_buf_writable_size > 5*(AUDIO_TOTAL_BUF_SIZE>>3) - in_gap)
 	    {
 	    	haudio->in_packet_size = AUDIO_IN_PACKET+2;
+#ifdef USE_BUFFERS_STATE_INDICATION
 	    	LED_R_GPIO_Port->ODR |= LED_R_Pin;
+#endif
 	    	in_gap = AUDIO_TOTAL_BUF_SIZE>>4;
 	    }
 	  }

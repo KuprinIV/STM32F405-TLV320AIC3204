@@ -31,8 +31,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-#define BT_SLEEP_DELAY 2400 // 60 sec (in 25 ms steps)
-#define BT_FW_PACKET_SIZE 128
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -55,9 +54,7 @@ DMA_HandleTypeDef hdma_tim4_ch1;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-uint8_t btFwDataPacket[BT_FW_PACKET_SIZE] = {0xFF};
-uint8_t outBootStateData[2] = {0x07, 0x00};
-uint8_t packet_64b_cntr = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -83,14 +80,7 @@ static void MX_Timers_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  uint8_t isButtonPressed = 0;
-  uint8_t isButtonLongPressed = 0;
-  uint8_t isLongPressDetected = 0;
-  uint8_t report_data[9] = {0};
-  uint8_t longPressCntr = 0;
-  uint8_t res;
   uint16_t btSleepCounter = 0;
-  uint32_t btStartFlashAddr = BT_START_FLASH_ADDR;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -133,163 +123,24 @@ int main(void)
 	  if(kbState->isScanningTimerUpdated)
 	  {
 		  kbState->isScanningTimerUpdated = 0;
-//		  if(((USER_BUTTON_GPIO_Port->IDR & USER_BUTTON_Pin) == 0) && !isButtonPressed) // if button pressed
-//		  {
-//			  isButtonPressed = 1;
-//			  btSleepCounter = 0; // reset BT sleep mode counter
-//			  bt121_drv->SetEnabled(1); // enable BT
-//			  if(kbState->isDelayMeasureTestEnabled && (TIM7->CR1 & TIM_CR1_CEN))
-//			  {
-//				  kbState->delayBetweenStimAndResponse = TIM7->CNT;
-//
-//				  report_data[0] = 0x02;
-//				  report_data[1] = (uint8_t)(kbState->delayBetweenStimAndResponse>>8); // measured delay MSB
-//				  report_data[2] = (uint8_t)(kbState->delayBetweenStimAndResponse & 0xFF); // measured delay LSB
-//				  TIM7->EGR |= TIM_EGR_UG;
-//				  USBD_COMP_HID_SendReport_FS(report_data, 3); // send report
-//			  }
-//			  if(bt121_drv->IsHID_EndpointConnected())
-//			  {
-//				  report_data[0] = 0x01; // report ID
-//				  report_data[1] = 0xB2;
-//				  report_data[7] = 0x53;
-//				  bt121_drv->SendInputReport(report_data[0], &report_data[1], sizeof(report_data)-1);
-//			  }
-//		  }
-//		  else if(((USER_BUTTON_GPIO_Port->IDR & USER_BUTTON_Pin) == 0) && isButtonPressed) // if button is pressed yet
-//		  {
-//			  btSleepCounter = 0; // reset BT sleep mode counter
-//			  if(!isLongPressDetected)
-//			  {
-//				  if(longPressCntr == 39)
-//				  {
-//					  isButtonLongPressed = 1;
-//					  isLongPressDetected = 1;
-//				  }
-//				  else
-//				  {
-//					  longPressCntr++;
-//				  }
-//			  }
-//		  }
-//		  else if((USER_BUTTON_GPIO_Port->IDR & USER_BUTTON_Pin) && isButtonPressed) // if button released
-//		  {
-//			  isButtonPressed = 0;
-//			  longPressCntr = 0;
-//			  isButtonLongPressed = 0;
-//			  isLongPressDetected = 0;
-//			  btSleepCounter = 0; // reset BT sleep mode counter
-//
-//			  if(bt121_drv->IsHID_EndpointConnected())
-//			  {
-//				  report_data[0] = 0x01; // report ID
-//				  report_data[1] = 0x00;
-//				  report_data[7] = 0x53;
-//				  bt121_drv->SendInputReport(report_data[0], &report_data[1], sizeof(report_data)-1);
-//			  }
-//		  }
-//		  // handle long button press action
-//		  if(isButtonLongPressed)
-//		  {
-//			  isButtonLongPressed = 0;
-//			  bt121_drv->DeleteBonding();
-//		  }
-//		  // check BT module to sleep
-//		  if(btSleepCounter < BT_SLEEP_DELAY)
-//		  {
-//			  btSleepCounter++;
-//		  }
-//		  else
-//		  {
-//			  bt121_drv->SetEnabled(0); // disable BT
-//		  }
-		  kbState->ScanKeyboard();
+		  // if any new keyboard action was made, reset BT sleep mode counter
+		  if(kbState->ScanKeyboard())
+		  {
+			  btSleepCounter = 0;
+			  bt121_drv->SetEnabled(1); // enable BT
+		  }
+		  // check BT module to sleep
+		  if(btSleepCounter < BT_SLEEP_DELAY)
+		  {
+			  btSleepCounter++;
+		  }
+		  else
+		  {
+			  bt121_drv->SetEnabled(0); // disable BT
+		  }
 	  }
-	  // set BT to boot mode
-//	  if(kbState->startBTBootMode)
-//	  {
-//		  kbState->startBTBootMode = 0;
-//		  res = bt121_drv->BootModeCtrl(1); // BT boot mode control
-//		  if(res == HAL_OK)
-//		  {
-//			  res = bt121_drv->BT_FlashErase();
-//			  if(res == HAL_OK)
-//			  {
-//				  outBootStateData[1] = 0x7F;
-//				  btStartFlashAddr = BT_START_FLASH_ADDR;
-//			  }
-//			  else
-//			  {
-//				  outBootStateData[1] = res;
-//			  }
-//		  }
-//		  else
-//		  {
-//			  outBootStateData[1] = res;
-//		  }
-//		  USBD_COMP_HID_SendReport_FS(outBootStateData, 2); // send transfer result of firmware packet to BT
-//	  }
-	  // exit BT from boot mode
-//	  if(kbState->stopBTBootMode)
-//	  {
-//		  kbState->stopBTBootMode = 0;
-//		  kbState->isBtFwUpdateStarted = 0;
-//		  btStartFlashAddr = BT_START_FLASH_ADDR;
-//		  bt121_drv->BootModeCtrl(0); // BT boot mode control
-//
-//	  }
-	  // handle BT firmware update data transfer
-//	  if(kbState->isBtFwUpdateStarted)
-//	  {
-//		  if(!kbState->isBtReadyToReceiveNextPacket)
-//		  {
-//			  kbState->isBtReadyToReceiveNextPacket = 1;
-//
-//			  if(packet_64b_cntr < ((BT_FW_PACKET_SIZE>>6)-1))
-//			  {
-//				  memcpy(btFwDataPacket+(packet_64b_cntr<<6), kbState->btFwPacket64b, 64);
-//				  packet_64b_cntr++;
-//
-//				  outBootStateData[0] = 0x07;
-//				  outBootStateData[1] = HAL_OK; // set success state
-//				  USBD_COMP_HID_SendReport_FS(outBootStateData, 2); // send transfer result of firmware packet to BT
-//			  }
-//			  else
-//			  {
-//				  memcpy(btFwDataPacket+(packet_64b_cntr<<6), kbState->btFwPacket64b, 64);
-//				  packet_64b_cntr = 0;
-//
-//				  res = bt121_drv->BT_FlashWrite(btStartFlashAddr, btFwDataPacket, BT_FW_PACKET_SIZE);
-//				  if(res == HAL_OK)
-//				  {
-//					  // verify flash data
-//					  res = bt121_drv->BT_FlashVerify(btStartFlashAddr, btFwDataPacket, BT_FW_PACKET_SIZE);
-//					  if(res == HAL_OK)
-//					  {
-//						  btStartFlashAddr += BT_FW_PACKET_SIZE;
-//
-//						  outBootStateData[0] = 0x07;
-//						  outBootStateData[1] = HAL_OK; // set success state
-//						  USBD_COMP_HID_SendReport_FS(outBootStateData, 2); // send transfer result of firmware packet to BT
-//					  }
-//					  else
-//					  {
-//						  outBootStateData[0] = 0x07;
-//						  outBootStateData[1] = res; // set error state, because error occurred during flash data verification
-//						  kbState->stopBTBootMode = 1;
-//						  USBD_COMP_HID_SendReport_FS(outBootStateData, 2); // send transfer result of firmware packet to BT
-//					  }
-//				  }
-//				  else
-//				  {
-//					  outBootStateData[0] = 0x07;
-//					  outBootStateData[1] = res; // set error state, because error occurred during flash write
-//					  kbState->stopBTBootMode = 1;
-//					  USBD_COMP_HID_SendReport_FS(outBootStateData, 2); // send transfer result of firmware packet to BT
-//				  }
-//			  }
-//		  }
-//	  }
+	  // handle firmware update task, if it started
+	  bt121_drv->UpdateFirmware();
   }
   /* USER CODE END 3 */
 }

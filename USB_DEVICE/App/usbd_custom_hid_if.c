@@ -271,19 +271,18 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t report_num)
 			kbState->isDelayMeasureTestEnabled = (inputData[1] & 0x01); // delay test control
 			if((inputData[2] & 0x01) == 1)
 			{
-				kbState->startBTBootMode = 1;
+				bt121_fw_update->startBTBootMode = 1;
 			}
 			else
 			{
-				kbState->stopBTBootMode = 1;
+				bt121_fw_update->stopBTBootMode = 1;
 			}
 			break;
 
 		case 6:
-			kbState->isBtFwUpdateStarted = 1;
-//			kbState->Get64bPacket(&inputData[1], USBD_CUSTOMHID_OUTREPORT_BUF_SIZE-1);
-			memcpy(kbState->btFwPacket64b, &inputData[1], USBD_CUSTOMHID_OUTREPORT_BUF_SIZE-1);
-			kbState->isBtReadyToReceiveNextPacket = 0;
+			bt121_fw_update->isBtFwUpdateStarted = 1;
+			memcpy(bt121_fw_update->btFwPacket64b, &inputData[1], USBD_CUSTOMHID_OUTREPORT_BUF_SIZE-1);
+			bt121_fw_update->isBtReadyToReceiveNextPacket = 0;
 			break;
 
 		default:

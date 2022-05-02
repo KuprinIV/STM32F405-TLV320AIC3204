@@ -207,6 +207,8 @@
  */
 #define AUDIO_BUF_SAFEZONE                            ((uint16_t)((USBD_AUDIO_FREQ / 1000U) * 2U * 4U))
 
+//#define USE_BUFFERS_STATE_INDICATION					1
+
     /* Audio Commands enumeration */
 typedef enum
 {
