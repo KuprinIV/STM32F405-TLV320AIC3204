@@ -15,6 +15,6 @@ typedef struct
 	int16_t x[MAX_ORDER+1]; //input samples
 }IIR_FilterData;
 
-int16_t doFilter(IIR_FilterData* filter_data, int16_t NewSample);
+int16_t doIirFilter(IIR_FilterData* filter_data, int16_t NewSample);
 
 #endif

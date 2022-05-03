@@ -19,6 +19,8 @@
 #define HEADPHONES_DETECTION_THRESHOLD_LEVEL 	2000
 #define MIN_JOYSTICK_DELTA						20
 
+//#define USE_IIR_FILTER							1
+
 typedef enum
 {
 	NONE = 0x00,

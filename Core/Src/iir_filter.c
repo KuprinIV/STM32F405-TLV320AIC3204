@@ -20,7 +20,7 @@ z = 0.571472 + j 0.293599
 ***************************************************************/
 #include "iir_filter.h"
 
-int16_t doFilter(IIR_FilterData* filter_data, int16_t NewSample)
+int16_t doIirFilter(IIR_FilterData* filter_data, int16_t NewSample)
 {
     //shift the old samples
     for(uint8_t n = filter_data->order; n > 0; n--)

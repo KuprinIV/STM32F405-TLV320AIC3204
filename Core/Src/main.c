@@ -111,6 +111,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   bt121_drv->Init();
   initKeyboardState();
+  kbState->SetStateLedColor(GREEN);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -514,10 +515,11 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
+//  __disable_irq();
+//  while (1)
+//  {
+//  }
+	kbState->SetStateLedColor(RED);
   /* USER CODE END Error_Handler_Debug */
 }
 

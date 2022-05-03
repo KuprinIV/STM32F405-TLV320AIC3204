@@ -4,6 +4,7 @@
 #include "usbd_comp.h"
 #include "tlv320aic3204.h"
 #include "iir_filter.h"
+#include "fir_filter.h"
 
 static void setFrontLedColor(uint32_t color);
 static void setStateLedColor(StateLedColors color);
@@ -21,12 +22,27 @@ KeyboardState *kbState;
 
 JoystickData joystickLeft = {3755, 340, 2048, 3755, 340, 2048, 2048, 2048}; // default values from schematic
 JoystickData joystickRight = {3755, 340, 2048, 3755, 340, 2048, 2048, 2048}; // default values from schematic
-// init filters data structs
+
+#ifdef USE_IIR_FILTER
+// init IIR filters data structs
 IIR_FilterData iir_LP_50Hz_J1V = {2, 32, {10543, 21086, 10543}, {16384, -25575, 10507}, {2048, 2048, 2048}, {0, 0, 0}};
 IIR_FilterData iir_LP_50Hz_J1H = {2, 32, {10543, 21086, 10543}, {16384, -25575, 10507}, {2048, 2048, 2048}, {0, 0, 0}};
 IIR_FilterData iir_LP_50Hz_J2V = {2, 32, {10543, 21086, 10543}, {16384, -25575, 10507}, {2048, 2048, 2048}, {0, 0, 0}};
 IIR_FilterData iir_LP_50Hz_J2H = {2, 32, {10543, 21086, 10543}, {16384, -25575, 10507}, {2048, 2048, 2048}, {0, 0, 0}};
 IIR_FilterData iir_LP_50Hz_HPDET = {2, 32, {10543, 21086, 10543}, {16384, -25575, 10507}, {2048, 2048, 2048}, {0, 0, 0}};
+#else
+// init FIR filters data structs
+FIR_FilterData fir_LP_25Hz_J1V = {524288, {2815, 4280, 5933, 7764, 9760, 11898, 14150, 16476, 18830, 21154, 23379, 25426, 27204,
+		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {0}};
+FIR_FilterData fir_LP_25Hz_J1H = {524288, {2815, 4280, 5933, 7764, 9760, 11898, 14150, 16476, 18830, 21154, 23379, 25426, 27204,
+		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {0}};
+FIR_FilterData fir_LP_25Hz_J2V = {524288, {2815, 4280, 5933, 7764, 9760, 11898, 14150, 16476, 18830, 21154, 23379, 25426, 27204,
+		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {0}};
+FIR_FilterData fir_LP_25Hz_J2H = {524288, {2815, 4280, 5933, 7764, 9760, 11898, 14150, 16476, 18830, 21154, 23379, 25426, 27204,
+		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {0}};
+FIR_FilterData fir_LP_25Hz_HPDET = {524288, {2815, 4280, 5933, 7764, 9760, 11898, 14150, 16476, 18830, 21154, 23379, 25426, 27204,
+		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {0}};
+#endif
 
 uint8_t prev_kb_state = 0x3F;
 uint8_t bt64bFwPacket[64] = {0xFF};
@@ -246,13 +262,23 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 
 	static uint16_t hp_detection_level_prev = 4095;
 
-	joystickLeft.h_value = doFilter(&iir_LP_50Hz_J1H, (int16_t)adcSamples[1]);
-	joystickLeft.v_value = doFilter(&iir_LP_50Hz_J1V, (int16_t)adcSamples[0]);
+#ifdef USE_IIR_FILTER
+	joystickLeft.h_value = doIirFilter(&iir_LP_50Hz_J1H, (int16_t)adcSamples[1]);
+	joystickLeft.v_value = doIirFilter(&iir_LP_50Hz_J1V, (int16_t)adcSamples[0]);
 
-	joystickRight.h_value = doFilter(&iir_LP_50Hz_J2H, (int16_t)adcSamples[4]);
-	joystickRight.v_value = doFilter(&iir_LP_50Hz_J2V, (int16_t)adcSamples[3]);
+	joystickRight.h_value = doIirFilter(&iir_LP_50Hz_J2H, (int16_t)adcSamples[4]);
+	joystickRight.v_value = doIirFilter(&iir_LP_50Hz_J2V, (int16_t)adcSamples[3]);
 
-	hp_detection_level = doFilter(&iir_LP_50Hz_HPDET, (int16_t)adcSamples[2]);
+	hp_detection_level = doIirFilter(&iir_LP_50Hz_HPDET, (int16_t)adcSamples[2]);
+#else
+	joystickLeft.h_value = doFirFilter(&fir_LP_25Hz_J1H, (int16_t)adcSamples[1]);
+	joystickLeft.v_value = doFirFilter(&fir_LP_25Hz_J1V, (int16_t)adcSamples[0]);
+
+	joystickRight.h_value = doFirFilter(&fir_LP_25Hz_J2H, (int16_t)adcSamples[4]);
+	joystickRight.v_value = doFirFilter(&fir_LP_25Hz_J2V, (int16_t)adcSamples[3]);
+
+	hp_detection_level = doFirFilter(&fir_LP_25Hz_HPDET, (int16_t)adcSamples[2]);
+#endif
 
 	// headphones is connected, switch codec's output to headphones
 	if(hp_detection_level_prev >= HEADPHONES_DETECTION_THRESHOLD_LEVEL && hp_detection_level < HEADPHONES_DETECTION_THRESHOLD_LEVEL)
