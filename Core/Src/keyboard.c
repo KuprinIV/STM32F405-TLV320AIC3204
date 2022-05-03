@@ -20,8 +20,8 @@ extern ADC_HandleTypeDef hadc1;
 KeyboardState keyboardState;
 KeyboardState *kbState;
 
-JoystickData joystickLeft = {3755, 340, 2048, 3755, 340, 2048, 2048, 2048}; // default values from schematic
-JoystickData joystickRight = {3755, 340, 2048, 3755, 340, 2048, 2048, 2048}; // default values from schematic
+JoystickData joystickLeft = {3748, 366, 2056, 3731, 354, 2048, 2056, 2048}; // default values from schematic
+JoystickData joystickRight = {3723, 380, 2046, 3724, 384, 2030, 2046, 2030}; // default values from schematic
 
 #ifdef USE_IIR_FILTER
 // init IIR filters data structs
