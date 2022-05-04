@@ -102,7 +102,10 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
+
+  tlv320aic3204_drv->PowerOnOff(1);
   tlv320aic3204_drv->Reset();
+
   MX_Timers_Init();
   MX_USB_DEVICE_Init();
   MX_ADC1_Init();
@@ -111,7 +114,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   bt121_drv->Init();
   initKeyboardState();
-  kbState->SetStateLedColor(GREEN);
+//  kbState->SetStateLedColor(GREEN);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -460,9 +463,9 @@ static void MX_Timers_Init(void)
 	HAL_NVIC_EnableIRQ(TIM7_IRQn);
 
 // button scanning ang LED blinking timer init (period 50 ms)
-	RCC->APB1ENR |= RCC_APB1ENR_TIM6EN; // enable TIM7 clock
+	RCC->APB1ENR |= RCC_APB1ENR_TIM6EN; // enable TIM6 clock
 	TIM6->PSC = 23999; // divide internal clock
-	TIM6->ARR = 49;
+	TIM6->ARR = 19;
 	TIM6->DIER |= TIM_DIER_UIE; // update interrupt enable
 	TIM6->CR1 |= TIM_CR1_ARPE|TIM_CR1_CEN; // enable ARR register preload
 	// configure interrupt

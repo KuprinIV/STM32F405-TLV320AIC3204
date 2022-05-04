@@ -151,7 +151,6 @@ USBD_AUDIO_ItfTypeDef USBD_AUDIO_fops_FS =
 static int8_t AUDIO_Init_FS(uint32_t AudioFreq, uint32_t Volume, uint32_t options)
 {
   /* USER CODE BEGIN 0 */
-  tlv320aic3204_drv->PowerOnOff(1);
   tlv320aic3204_drv->InitInterface();
   tlv320aic3204_drv->CodecInit();
 

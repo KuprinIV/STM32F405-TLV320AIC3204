@@ -151,7 +151,7 @@ static void writeRegister(uint8_t addr, uint8_t value)
 	data[0] = addr;
 	data[1] = value;
 
-	HAL_I2C_Master_Transmit(&hi2c2, 0x30, data, 2, 10000);
+	HAL_I2C_Master_Transmit(&hi2c2, 0x30, data, 2, 1000);
 }
 
 static uint8_t readRegister(uint8_t addr)
@@ -160,8 +160,8 @@ static uint8_t readRegister(uint8_t addr)
 	uint8_t rxData = 0;
 
 	txData = addr;
-	HAL_I2C_Master_Transmit(&hi2c2, 0x30, &txData, 1, 10000); // send register address
-	HAL_I2C_Master_Receive(&hi2c2, 0x30, &rxData, 1, 10000); // receive register value
+	HAL_I2C_Master_Transmit(&hi2c2, 0x30, &txData, 1, 1000); // send register address
+	HAL_I2C_Master_Receive(&hi2c2, 0x30, &rxData, 1, 1000); // receive register value
 	return rxData;
 }
 
@@ -175,11 +175,11 @@ static void tlv320aic3204_PowerOnOff(uint8_t is_powered)
 	{
 		AUD_EN_GPIO_Port->ODR &= ~AUD_EN_Pin; // disable audio part power supply
 	}
+	HAL_Delay(50);
 }
 
 static void tlv320aic3204_hardwareReset(void)
 {
-	HAL_Delay(2);
 //	make hardware reset (pin PB10)
 	CODEC_RST_GPIO_Port->BSRR = CODEC_RST_Pin<<16;
 	HAL_Delay(1);

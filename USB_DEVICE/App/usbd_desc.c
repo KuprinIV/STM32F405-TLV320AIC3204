@@ -63,13 +63,13 @@
   * @{
   */
 
-#define USBD_VID     1155
+#define USBD_VID     0xACCA
 #define USBD_LANGID_STRING     1033
-#define USBD_MANUFACTURER_STRING     "STMicroelectronics"
+#define USBD_MANUFACTURER_STRING     "Neurosoft"
 #define USBD_PID_FS     22339
-#define USBD_PRODUCT_STRING_FS     "STM32 Audio Class"
-#define USBD_CONFIGURATION_STRING_FS     "AUDIO Config"
-#define USBD_INTERFACE_STRING_FS     "AUDIO Interface"
+#define USBD_PRODUCT_STRING_FS     "Keyboard KF3"
+#define USBD_CONFIGURATION_STRING_FS     ""
+#define USBD_INTERFACE_STRING_FS     ""
 
 #define USB_SIZ_BOS_DESC            0x0C
 
