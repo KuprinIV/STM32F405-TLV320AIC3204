@@ -160,6 +160,7 @@ static uint8_t readRegister(uint8_t addr)
 	uint8_t rxData = 0;
 
 	txData = addr;
+
 	HAL_I2C_Master_Transmit(&hi2c2, 0x30, &txData, 1, 1000); // send register address
 	HAL_I2C_Master_Receive(&hi2c2, 0x30, &rxData, 1, 1000); // receive register value
 	return rxData;
@@ -175,11 +176,11 @@ static void tlv320aic3204_PowerOnOff(uint8_t is_powered)
 	{
 		AUD_EN_GPIO_Port->ODR &= ~AUD_EN_Pin; // disable audio part power supply
 	}
-	HAL_Delay(50);
 }
 
 static void tlv320aic3204_hardwareReset(void)
 {
+	HAL_Delay(2);
 //	make hardware reset (pin PB10)
 	CODEC_RST_GPIO_Port->BSRR = CODEC_RST_Pin<<16;
 	HAL_Delay(1);
@@ -194,7 +195,7 @@ static void tlv320aic3204_InterfaceInit(void)
 // codec control interface init
 	  /* I2C2 parameter configuration*/
 	  hi2c2.Instance = I2C2;
-	  hi2c2.Init.ClockSpeed = 100000;
+	  hi2c2.Init.ClockSpeed = 400000;
 	  hi2c2.Init.DutyCycle = I2C_DUTYCYCLE_16_9;
 	  hi2c2.Init.OwnAddress1 = 0;
 	  hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;

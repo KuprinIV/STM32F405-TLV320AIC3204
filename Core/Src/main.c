@@ -103,7 +103,7 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
 
-  tlv320aic3204_drv->PowerOnOff(1);
+//  tlv320aic3204_drv->PowerOnOff(1);
   tlv320aic3204_drv->Reset();
 
   MX_Timers_Init();
@@ -365,10 +365,10 @@ static void MX_DMA_Init(void)
 
   /* DMA interrupt init */
   /* DMA1_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 2, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
   /* DMA2_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 2, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
 
 }

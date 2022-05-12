@@ -18,7 +18,7 @@ extern TIM_HandleTypeDef htim8;
 extern ADC_HandleTypeDef hadc1;
 
 KeyboardState keyboardState = {0, 0, 0, StartTimer, setFrontLedColor, setStateLedColor, scanKeyboard};
-KeyboardState *kbState = &keyboardState;
+KeyboardState *kbState;
 
 JoystickData joystickLeft = {3748, 366, 2056, 3731, 354, 2048, 2056, 2048}; // default values from schematic
 JoystickData joystickRight = {3723, 380, 2046, 3724, 384, 2030, 2046, 2030}; // default values from schematic
@@ -53,9 +53,10 @@ uint16_t hp_detection_level = 4095;
 
 void initKeyboardState(void)
 {
-	  // start ADC conversion
-	  HAL_TIM_Base_Start(&htim8);
-	  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcSamples, 5);
+	kbState = &keyboardState;
+	// start ADC conversion
+	HAL_TIM_Base_Start(&htim8);
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcSamples, 5);
 }
 
 static void setFrontLedColor(uint32_t color_grb)

@@ -801,13 +801,12 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
   /* Do stuff only when playing */
   if (haudio->out_rd_enable == 1)
   {
-	// wait for stabilization of data pointers stabilization before calculating feedback data
-	/* Remaining writable buffer size */
-	uint32_t audio_out_buf_writable_size;
-
 	/* Update audio out read pointer */
 	haudio->out_rd_ptr = AUDIO_TOTAL_BUF_SIZE - tlv320aic3204_drv->GetOutDataRemainingSize();
 
+#ifdef USE_BUFFERS_STATE_INDICATION
+	/* Remaining writable buffer size */
+	uint32_t audio_out_buf_writable_size;
 	/* Calculate remaining writable buffer size */
 	if (haudio->out_rd_ptr < haudio->out_wr_ptr)
 	{
@@ -819,7 +818,6 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef* pdev)
 	}
 
 	/* Monitor remaining writable buffer size with LED */
-#ifdef USE_BUFFERS_STATE_INDICATION
 	if (audio_out_buf_writable_size < AUDIO_BUF_SAFEZONE)
 	{
 		LED_G_GPIO_Port->ODR |= LED_G_Pin;

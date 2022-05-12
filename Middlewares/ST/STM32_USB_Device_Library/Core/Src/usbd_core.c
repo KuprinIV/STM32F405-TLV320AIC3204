@@ -582,7 +582,7 @@ USBD_StatusTypeDef USBD_LL_IsoOUTIncomplete(USBD_HandleTypeDef *pdev,
 USBD_StatusTypeDef USBD_LL_DevConnected(USBD_HandleTypeDef *pdev)
 {
   /* Prevent unused argument compilation warning */
-	GPIOC->ODR |= GPIO_PIN_14;
+  GPIOC->ODR |= GPIO_PIN_14;
   UNUSED(pdev);
 
   return USBD_OK;
@@ -597,7 +597,7 @@ USBD_StatusTypeDef USBD_LL_DevConnected(USBD_HandleTypeDef *pdev)
 USBD_StatusTypeDef USBD_LL_DevDisconnected(USBD_HandleTypeDef *pdev)
 {
   /* Free Class Resources */
-	GPIOC->ODR &= ~GPIO_PIN_14;
+  GPIOC->ODR &= ~GPIO_PIN_14;
   pdev->dev_state = USBD_STATE_DEFAULT;
   pdev->pClass->DeInit(pdev, (uint8_t)pdev->dev_config);
 
