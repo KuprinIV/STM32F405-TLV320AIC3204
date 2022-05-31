@@ -103,7 +103,7 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
 
-//  tlv320aic3204_drv->PowerOnOff(1);
+  tlv320aic3204_drv->PowerOnOff(1);
   tlv320aic3204_drv->Reset();
 
   MX_Timers_Init();
@@ -452,38 +452,16 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 static void MX_Timers_Init(void)
 {
-// measuring delay between stimulus start and button press timer init (1 ms step)
-	RCC->APB1ENR |= RCC_APB1ENR_TIM7EN; // enable TIM7 clock
-	TIM7->PSC = 47999; // divide internal clock
-	TIM7->ARR = 65535;
-	TIM7->DIER |= TIM_DIER_UIE; // update interrupt enable
-	TIM7->CR1 |= TIM_CR1_ARPE; // enable ARR register preload
-	// configure interrupt
-	HAL_NVIC_SetPriority(TIM7_IRQn, 1, 0);
-	HAL_NVIC_EnableIRQ(TIM7_IRQn);
-
-// button scanning ang LED blinking timer init (period 50 ms)
-	RCC->APB1ENR |= RCC_APB1ENR_TIM6EN; // enable TIM6 clock
-	TIM6->PSC = 23999; // divide internal clock
-	TIM6->ARR = 19;
-	TIM6->DIER |= TIM_DIER_UIE; // update interrupt enable
-	TIM6->CR1 |= TIM_CR1_ARPE|TIM_CR1_CEN; // enable ARR register preload
-	// configure interrupt
-	HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 1, 0);
-	HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
-
 // SOF period measuring timer
-
-    /* Необходимо по приходу сигнала SOF захватывать значение счетчика таймера 2 в регистр захвата, а сам счетчик таймера 2 - сбрасывать
-     В процедуре обработки SOF'а флаг захвата сбрасывается, а значение накапливается, для того, чтобы выдать значение feedback rate
-     Поскольку система имеет три независимых источника тактовой частоты - генератор MCLK, частота USB SOF от хоста и HSE PLL,
-     таймер 2 тактируется от частоты MCLK=12288 кГц. Такми образом, между SOFами
-     таймер 2 должен насчитывать примерно 12200-12400. Это значение должно попадать в регистр захвата таймера 2. Т.к. согласно стандарту
-     значение feedback value должно выдаваться в формате 10.14 и содержать отношение fs/fsof, а накопление идет 2^SOF_VALUE периодов,
-     получаем за период SOF - 12288 импульса
-     сдвинуть нужно на 6 разрядов влево, чтобы получить feedback_value
-     */
-
+	/* Необходимо по приходу сигнала SOF захватывать значение счетчика таймера 2 в регистр захвата, а сам счетчик таймера 2 - сбрасывать
+	 В процедуре обработки SOF'а флаг захвата сбрасывается, а значение накапливается, для того, чтобы выдать значение feedback rate
+	 Поскольку система имеет три независимых источника тактовой частоты - генератор MCLK, частота USB SOF от хоста и HSE PLL,
+	 таймер 2 тактируется от частоты MCLK=12288 кГц. Такми образом, между SOFами
+	 таймер 2 должен насчитывать примерно 12200-12400. Это значение должно попадать в регистр захвата таймера 2. Т.к. согласно стандарту
+	 значение feedback value должно выдаваться в формате 10.14 и содержать отношение fs/fsof, а накопление идет 2^SOF_VALUE периодов,
+	 получаем за период SOF - 12288 импульса
+	 сдвинуть нужно на 6 разрядов влево, чтобы получить feedback_value
+	 */
 	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // enable TIM2 clock
 	TIM2->PSC = 0;
 	TIM2->ARR = 0xFFFFFFFF;
@@ -493,20 +471,49 @@ static void MX_Timers_Init(void)
 	TIM2->CCER |= TIM_CCER_CC1E; // Capture enabled
 	TIM2->CR1 |= TIM_CR1_CEN; // Counter enabled
 
-	//TIM4 channel 1 init in PWM mode 1 for front LED color setting
+//TIM4 channel 1 init in PWM mode 1 for front LED color setting
 	RCC->APB1ENR |= RCC_APB1ENR_TIM4EN; // TIM4 clock enable
-	TIM4->CCER |= TIM_CCER_CC1E;// TIM4 channel 1 enable
-	TIM4->CCER &= ~TIM_CCER_CC1P;// polarity: active high
+	TIM4->CCER &= ~TIM_CCER_CC1P;// polarity: active low
 	TIM4->CCMR1 |= TIM_CCMR1_OC1M_2|TIM_CCMR1_OC1M_1|TIM_CCMR1_OC1PE;// PWM mode 1 and enable preload register
-	TIM4->CR1 |= TIM_CR1_ARPE; // auto-reload preload register enable
+	TIM4->CR1 |= TIM_CR1_ARPE/*|TIM_CR1_DIR*/; // auto-reload preload register enable
 	TIM4->DIER |= TIM_DIER_CC1DE; // enable DMA requests for channel 1
 	TIM4->PSC = 0;  // period
 	TIM4->ARR = 59; // of signal
 	TIM4->BDTR |= TIM_BDTR_MOE; // master output enable
+	TIM4->CCER |= TIM_CCER_CC1E;// TIM4 channel 1 enable
 	// DMA enable for TIM4 CCR1 register write
 	RCC->AHB1ENR |= RCC_AHB1ENR_DMA1EN; // DMA clock enable
 	DMA1_Stream0->PAR = (uint32_t)&TIM4->CCR1;
 	DMA1_Stream0->CR |= (DMA_SxCR_CHSEL_1|DMA_SxCR_MSIZE_0|DMA_SxCR_PSIZE_0|DMA_SxCR_MINC|DMA_SxCR_DIR_0|DMA_SxCR_TCIE);
+
+// front LED pulse length timer init (1 ms step)
+	RCC->APB1ENR |= RCC_APB1ENR_TIM5EN; // enable TIM5 clock
+	TIM5->PSC = 47999; // divide internal clock
+	TIM5->DIER |= TIM_DIER_UIE; // update interrupt enable
+	TIM5->CR1 |= TIM_CR1_URS; // only counter overflow generates an update interrupt if enabled
+	// configure interrupt
+	HAL_NVIC_SetPriority(TIM5_IRQn, 1, 0);
+	HAL_NVIC_EnableIRQ(TIM5_IRQn);
+
+// button scanning ang LED blinking timer init (period 10 ms)
+	RCC->APB1ENR |= RCC_APB1ENR_TIM6EN; // enable TIM6 clock
+	TIM6->PSC = 23999; // divide internal clock
+	TIM6->ARR = 19;
+	TIM6->DIER |= TIM_DIER_UIE; // update interrupt enable
+	TIM6->CR1 |= TIM_CR1_ARPE|TIM_CR1_CEN; // enable ARR register preload
+	// configure interrupt
+	HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 2, 0);
+	HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+
+// measuring delay between stimulus start and button press timer init (1 ms step)
+	RCC->APB1ENR |= RCC_APB1ENR_TIM7EN; // enable TIM7 clock
+	TIM7->PSC = 47999; // divide internal clock
+	TIM7->ARR = 65535;
+	TIM7->DIER |= TIM_DIER_UIE; // update interrupt enable
+	TIM7->CR1 |= TIM_CR1_ARPE; // enable ARR register preload
+	// configure interrupt
+	HAL_NVIC_SetPriority(TIM7_IRQn, 1, 0);
+	HAL_NVIC_EnableIRQ(TIM7_IRQn);
 }
 /* USER CODE END 4 */
 

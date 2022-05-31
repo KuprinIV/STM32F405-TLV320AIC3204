@@ -99,12 +99,12 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 	0x09, 0x01,                    // USAGE (Vendor Usage 1)
 	0xa1, 0x01,                    // COLLECTION (Application)
 
-	// keyboard state report (bytes: 0 - report ID (0x01), 1,2 - pressed key codes, 3 - joystick left X coordinate (-127...127),
-	// 4 -  joystick left Y coordinate (-127...127), 5 - joystick right X coordinate (-127...127), 6 -  joystick right Y coordinate (-127...127),
-	//	7 - battery charge state (0...100))
+	// keyboard state report (bytes: 0 - report ID (0x01), 1,2 - pressed key codes, 3 - delay MSB, 4 - delay LSB,  5 - joystick left X coordinate (-127...127),
+	// 6 -  joystick left Y coordinate (-127...127), 7 - joystick right X coordinate (-127...127), 8 -  joystick right Y coordinate (-127...127),
+	//	9 - battery charge state (0...100))
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x01,               	   //   REPORT_ID (1)
-	0x95, 0x07,                    //   REPORT_COUNT (7)
+	0x95, 0x09,                    //   REPORT_COUNT (9)
 	0x75, 0x08,                    //   REPORT_SIZE (8)
 	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
@@ -129,10 +129,11 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
 	0x91, 0x82,                    //   OUTPUT (Data,Var,Abs)
 
-	// LED control report (bytes: 0 - report ID (0x04), 1 - green color byte, 2 - red color byte, 3 - blue color byte)
+	// LED control report (bytes: 0 - report ID (0x04), 1 - pulse length MSB, 2 - pulse length LSB, 3 - green color byte, 4 - red color byte,
+	// 5 - blue color byte)
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x04,               	   //   REPORT_ID (4)
-	0x95, 0x03,                    //   REPORT_COUNT (3)
+	0x95, 0x05,                    //   REPORT_COUNT (5)
 	0x75, 0x08,                    //   REPORT_SIZE (8)
 	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
@@ -251,6 +252,7 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t report_num)
 {
   /* USER CODE BEGIN 6 */
 	uint8_t inputData[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE]= {0};
+	uint16_t pulse_length = 0;
 	uint32_t color_grb = 0;
 	USBD_CUSTOM_HID_HandleTypeDef  *hhid = (USBD_CUSTOM_HID_HandleTypeDef*)hUsbDeviceFS.pClassData;
 	memcpy(inputData, hhid->Report_buf, USBD_CUSTOMHID_OUTREPORT_BUF_SIZE);
@@ -263,8 +265,9 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t report_num)
 			break;
 
 		case 4:
-			color_grb = (inputData[1]<<16)|(inputData[2]<<8)|inputData[3];
-			kbState->SetFrontLedColor(color_grb); // set front LED color
+			pulse_length = (inputData[1]<<8)|inputData[2]; // LED pulse length in ms
+			color_grb = (inputData[3]<<16)|(inputData[4]<<8)|inputData[5]; // LED color
+			kbState->SetFrontLedColor(pulse_length, color_grb); // set front LED color
 			break;
 		
 		case 5:

@@ -218,13 +218,9 @@ void DMA1_Stream0_IRQHandler(void)
 	if(DMA1->LISR & DMA_LISR_TCIF0)
 	{
 		DMA1->LIFCR = DMA_LIFCR_CTCIF0; // clear interrupt flag
-
 		DMA1_Stream0->CR &= ~DMA_SxCR_EN; // stop DMA
 
-		TIM4->CCMR1 &= ~(TIM_CCMR1_OC2M_2 |TIM_CCMR1_OC2M_1|TIM_CCMR1_OC2M_0);
-		TIM4->CCMR1 |= TIM_CCMR1_OC2M_2; //force output to low
-		TIM4->CR1 &= ~TIM_CR1_CEN; // TIM4 disable
-
+		TIM4->CR1 &= ~TIM_CR1_CEN; // TIM4 enable
 	}
   /* USER CODE BEGIN DMA1_Stream0_IRQn 1 */
 
@@ -316,12 +312,13 @@ void OTG_FS_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
-void TIM7_IRQHandler(void)
+void TIM5_IRQHandler(void)
 {
-	if(TIM7->SR & TIM_SR_UIF)
+	if(TIM5->SR & TIM_SR_UIF)
 	{
-		TIM7->SR &= ~TIM_SR_UIF; // reset flag
-		TIM7->CR1 &= ~TIM_CR1_CEN;
+		TIM5->SR &= ~TIM_SR_UIF; // reset flag
+		TIM5->CR1 &= ~TIM_CR1_CEN; // stop timer
+		kbState->SetFrontLedColor(0, 0x00000000); // disable front LED
 	}
 }
 
@@ -331,6 +328,15 @@ void TIM6_DAC_IRQHandler(void)
 	{
 		TIM6->SR &= ~TIM_SR_UIF; // reset flag
 		kbState->isScanningTimerUpdated = 1;
+	}
+}
+
+void TIM7_IRQHandler(void)
+{
+	if(TIM7->SR & TIM_SR_UIF)
+	{
+		TIM7->SR &= ~TIM_SR_UIF; // reset flag
+		TIM7->CR1 &= ~TIM_CR1_CEN; // stop timer
 	}
 }
 /* USER CODE END 1 */

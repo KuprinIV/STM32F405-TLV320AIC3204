@@ -10,13 +10,21 @@
 #define KEY_5_MASK 								0x10
 #define KEY_6_MASK 								0x20
 
+// key codes
+#define KEY_CANCEL								0xB1
+#define KEY_OK									0xB2
+#define KEY_UP									0xA1
+#define KEY_DOWN								0xA2
+#define KEY_LEFT								0xA3
+#define KEY_RIGHT								0xA4
+
 // WS2812B LEDs count
 #define LEDS_COUNT 								4
 // digital "0" and "1" pulses length for WS2812B
 #define BIT0 									19
 #define BIT1 									40
 
-#define HEADPHONES_DETECTION_THRESHOLD_LEVEL 	2000
+#define HEADPHONES_DETECTION_THRESHOLD_LEVEL 	2048
 #define MIN_JOYSTICK_DELTA						20
 
 //#define USE_IIR_FILTER							1
@@ -36,7 +44,7 @@ typedef struct
 	uint8_t isScanningTimerUpdated;
 	// functions
 	void (*StartDelayMeasureTimer)(void);
-	void (*SetFrontLedColor)(uint32_t grb_color);
+	void (*SetFrontLedColor)(uint16_t pulse_length, uint32_t grb_color);
 	void (*SetStateLedColor)(StateLedColors color);
 	uint8_t (*ScanKeyboard)(void);
 }KeyboardState;

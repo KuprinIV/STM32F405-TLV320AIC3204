@@ -6,7 +6,7 @@
 #include "iir_filter.h"
 #include "fir_filter.h"
 
-static void setFrontLedColor(uint32_t color);
+static void setFrontLedColor(uint16_t pulse_length, uint32_t grb_color);
 static void setStateLedColor(StateLedColors color);
 static uint8_t scanKeyboard(void);
 static void StartTimer(void);
@@ -47,7 +47,7 @@ FIR_FilterData fir_LP_25Hz_HPDET = {524288, {2815, 4280, 5933, 7764, 9760, 11898
 uint8_t prev_kb_state = 0x3F;
 uint8_t bt64bFwPacket[64] = {0xFF};
 
-uint16_t LEDs_fb[LEDS_COUNT][24] = {0}; // LEDs data framebuffer
+uint16_t LEDs_fb[LEDS_COUNT+2][24] = {0}; // LEDs data framebuffer
 uint16_t adcSamples[5] = {0}; // IN6 - J1_AV; IN7 - J1_AH; IN12 - HP_DET; IN14 - J2_AV; IN15 - J2_AH
 uint16_t hp_detection_level = 4095;
 
@@ -59,23 +59,42 @@ void initKeyboardState(void)
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcSamples, 5);
 }
 
-static void setFrontLedColor(uint32_t color_grb)
+static void setFrontLedColor(uint16_t pulse_length, uint32_t grb_color)
 {
+	memset(LEDs_fb, 0, sizeof(LEDs_fb));
 	// fill LEDs framebuffer
 	for(uint8_t i = 0; i < LEDS_COUNT; i++)
 	{
 		for(uint8_t j = 0; j < 24; j++)
 		{
-			LEDs_fb[i][j] = (((color_grb>>(23-j)) & 0x01)) ? (BIT1) : (BIT0);
+			LEDs_fb[i][j] = (((grb_color>>(23-j)) & 0x01)) ? (BIT1) : (BIT0);
+		}
+	}
+	// 50 us pause
+	for(uint8_t i = LEDS_COUNT; i < LEDS_COUNT+2; i++)
+	{
+		for(uint8_t j = 0; j < 24; j++)
+		{
+			LEDs_fb[i][j] = 0;
 		}
 	}
 	// start data transfer
 	DMA1_Stream0->M0AR = (uint32_t)LEDs_fb;
-	DMA1_Stream0->NDTR = LEDS_COUNT*24; // set burst data size
+	DMA1_Stream0->NDTR = (LEDS_COUNT+2)*24; // set burst data size
 	DMA1_Stream0->CR |= DMA_SxCR_EN; // enable DMA
 
-	TIM4->CCMR1 |= TIM_CCMR1_OC1M_2|TIM_CCMR1_OC1M_1; // set PWM mode 1
 	TIM4->CR1 |= TIM_CR1_CEN; // TIM4 enable
+
+	// start timer for limiting pulse length
+	if(pulse_length > 0)
+	{
+		TIM5->ARR = pulse_length-1;
+		TIM5->EGR |= TIM_EGR_UG; // call update event for setting actual ARR register value
+		TIM5->CR1 |= TIM_CR1_CEN; // enable timer
+		// start timer for delay test
+		kbState->isDelayMeasureTestEnabled = 1;
+		StartTimer();
+	}
 }
 
 static void setStateLedColor(StateLedColors color)
@@ -90,8 +109,7 @@ static uint8_t scanKeyboard(void)
 	uint8_t pressed_keys_cntr = 2;
 	uint8_t needToSendReport = 0;
 	uint8_t isDelayTestButtonPressed = 0;
-	uint8_t reportData[9] = {0};
-	uint8_t delayTestResultReportData[3] = {0};
+	uint8_t reportData[10] = {0};
 	int8_t j1_h = 0;
 	int8_t j1_v = 0;
 	int8_t j2_h = 0;
@@ -113,38 +131,39 @@ static uint8_t scanKeyboard(void)
 	if((current_kb_state & KEY_1_MASK) && pressed_keys_cntr > 0)
 	{
 		pressed_keys_cntr--;
-		reportData[2-pressed_keys_cntr] = 0xB1;
+		reportData[2-pressed_keys_cntr] = KEY_CANCEL;
+		isDelayTestButtonPressed = 1;
 	}
 	// ok button
 	if((current_kb_state & KEY_2_MASK) && pressed_keys_cntr > 0)
 	{
 		pressed_keys_cntr--;
-		reportData[2-pressed_keys_cntr] = 0xB2;
+		reportData[2-pressed_keys_cntr] = KEY_OK;
 		isDelayTestButtonPressed = 1;
 	}
 	// cross button up
 	if((current_kb_state & KEY_3_MASK) && pressed_keys_cntr > 0)
 	{
 		pressed_keys_cntr--;
-		reportData[2-pressed_keys_cntr] = 0xA1;
+		reportData[2-pressed_keys_cntr] = KEY_UP;
 	}
 	// cross button down
 	if((current_kb_state & KEY_4_MASK) && pressed_keys_cntr > 0)
 	{
 		pressed_keys_cntr--;
-		reportData[2-pressed_keys_cntr] = 0xA2;
+		reportData[2-pressed_keys_cntr] = KEY_DOWN;
 	}
 	// cross button left
 	if((current_kb_state & KEY_5_MASK) && pressed_keys_cntr > 0)
 	{
 		pressed_keys_cntr--;
-		reportData[2-pressed_keys_cntr] = 0xA3;
+		reportData[2-pressed_keys_cntr] = KEY_LEFT;
 	}
 	// cross button left
 	if((current_kb_state & KEY_6_MASK) && pressed_keys_cntr > 0)
 	{
 		pressed_keys_cntr--;
-		reportData[2-pressed_keys_cntr] = 0xA4;
+		reportData[2-pressed_keys_cntr] = KEY_RIGHT;
 	}
 
 	// send delay test result data
@@ -154,11 +173,9 @@ static uint8_t scanKeyboard(void)
 	  {
 		  kbState->delayBetweenStimAndResponse = TIM7->CNT;
 
-		  delayTestResultReportData[0] = 0x02;
-		  delayTestResultReportData[1] = (uint8_t)(kbState->delayBetweenStimAndResponse>>8); // measured delay MSB
-		  delayTestResultReportData[2] = (uint8_t)(kbState->delayBetweenStimAndResponse & 0xFF); // measured delay LSB
-		  TIM7->EGR |= TIM_EGR_UG;
-		  USBD_COMP_HID_SendReport_FS(delayTestResultReportData, 3); // send report
+		  reportData[3] = (uint8_t)(kbState->delayBetweenStimAndResponse>>8); // measured delay MSB
+		  reportData[4] = (uint8_t)(kbState->delayBetweenStimAndResponse & 0xFF); // measured delay LSB
+		  TIM7->EGR |= TIM_EGR_UG; // call update event for disabling timer
 	  }
 	}
 
@@ -170,16 +187,16 @@ static uint8_t scanKeyboard(void)
 		calcJoystickCoords(&joystickRight, &j2_h, &j2_v);
 
 		// add joysticks position to report data
-		reportData[3] = (uint8_t)j1_h;
-		reportData[4] = (uint8_t)j1_v;
-		reportData[5] = (uint8_t)j2_h;
-		reportData[6] = (uint8_t)j2_v;
+		reportData[5] = (uint8_t)j1_h;
+		reportData[6] = (uint8_t)j1_v;
+		reportData[7] = (uint8_t)j2_h;
+		reportData[8] = (uint8_t)j2_v;
 
 		needToSendReport = 1;
 	}
 
 	// get battery charge value
-	reportData[7] = 100; // TODO: add real data
+	reportData[9] = 100; // TODO: add real data
 
 	if(needToSendReport)
 	{
