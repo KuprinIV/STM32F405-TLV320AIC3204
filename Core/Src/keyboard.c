@@ -214,7 +214,14 @@ static uint8_t scanKeyboard(void)
 
 static void StartTimer(void)
 {
-	TIM7->CR1 |= TIM_CR1_CEN;
+	if(TIM7->CR1 & TIM_CR1_CEN)
+	{
+		TIM7->CNT = 0; // reset counter value, if timer already enabled
+	}
+	else
+	{
+		TIM7->CR1 |= TIM_CR1_CEN; // enable timer
+	}
 }
 
 static void calcJoystickCoords(JoystickData* jd, int8_t* x, int8_t* y)
