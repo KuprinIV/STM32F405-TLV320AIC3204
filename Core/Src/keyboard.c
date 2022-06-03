@@ -14,6 +14,7 @@ static void calcJoystickCoords(JoystickData* jd, int8_t* x, int8_t* y);
 static uint8_t isJoystickPositionChanged(JoystickData* jd);
 static void joysticksCalibrationModeControl(uint8_t is_enabled);
 static void saveJoysticksCalibrationData(uint16_t* joystickLeftCD, uint16_t* joystickRightCD);
+static void readJoysticksCalibrationData(JoystickData* jd_left, JoystickData* jd_right);
 
 extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim8;
@@ -287,6 +288,11 @@ static void saveJoysticksCalibrationData(uint16_t* joystickLeftCD, uint16_t* joy
 	// save calibration data to flash
 	// TODO: add write to flash function
 	LED_R_GPIO_Port->ODR |= LED_R_Pin; // debug
+}
+
+static void readJoysticksCalibrationData(JoystickData* jd_left, JoystickData* jd_right)
+{
+	// TODO: add read data from flash function
 }
 
 static void calcJoystickCoords(JoystickData* jd, int8_t* x, int8_t* y)
