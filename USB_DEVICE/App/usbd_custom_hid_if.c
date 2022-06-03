@@ -141,16 +141,17 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 
 	// misc control report (bytes: 0 - report ID (0x05), 1 - delay test control (0x00 - stop test, 0x01 - start test),
 	// 2 - BT firmware update command (0x00 - exit from BT boot mode, 0x01 - enter to the BT boot mode),
-	// 3 - enter to DFU boot mode (0x01))
+	// 3 - enter to DFU boot mode (0x01), 4 - joysticks calibration mode control (0x00 - exit from calibration mode
+	// 0x01 - enter to calibration mode)),
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x05,               	   //   REPORT_ID (5)
-	0x95, 0x03,                    //   REPORT_COUNT (3)
+	0x95, 0x04,                    //   REPORT_COUNT (4)
 	0x75, 0x08,                    //   REPORT_SIZE (8)
 	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
 	0x91, 0x82,                    //   OUTPUT (Data,Var,Abs)
 
-	// BT firmware data report (bytes: 0 - report ID (0x06), 1...65 - BT firmware data)
+	// BT firmware data report (bytes: 0 - report ID (0x06), 1...64 - BT firmware data)
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x06,               	   //   REPORT_ID (6)
 	0x95, 0x40,                    //   REPORT_COUNT (64)
@@ -163,6 +164,30 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x07,               	   //   REPORT_ID (7)
 	0x95, 0x01,                    //   REPORT_COUNT (1)
+	0x75, 0x08,                    //   REPORT_SIZE (8)
+	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
+	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
+	0x81, 0x82,                    //   INPUT (Data,Var,Abs)
+
+	// joysticks calibration data (bytes: 0 - report ID (0x08); 1,2 - joystick left H-axis max value; 3,4 - joystick left H-axis min value;
+	// 5,6 - joystick left H-axis zero value; 7,8 - joystick left Y-axis max value; 9,10 - joystick left Y-axis min value;
+	// 11,12 - joystick left Y-axis zero value; 13,14 - joystick right H-axis max value; 15,16 - joystick right H-axis min value;
+	// 17,18 - joystick right H-axis zero value; 19,20 - joystick right Y-axis max value; 21,22 - joystick right Y-axis min value;
+	// 23,24 - joystick right Y-axis zero value)
+	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
+	0x85, 0x08,               	   //   REPORT_ID (8)
+	0x95, 0x18,                    //   REPORT_COUNT (24)
+	0x75, 0x08,                    //   REPORT_SIZE (8)
+	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
+	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
+	0x91, 0x82,                    //   OUTPUT (Data,Var,Abs)
+
+	// joysticks position raw data (bytes: 0 - report ID (0x09), 1 - joystick left H-axis pos MSB, 2 - joystick left H-axis pos LSB,
+	// 3 - joystick left Y-axis pos MSB, 4 - joystick left Y-axis pos LSB, 5 - joystick right H-axis pos MSB, 6 - joystick right H-axis pos LSB,
+	// 7 - joystick right Y-axis pos MSB, 8 - joystick right Y-axis pos LSB))
+	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
+	0x85, 0x09,               	   //   REPORT_ID (9)
+	0x95, 0x08,                    //   REPORT_COUNT (8)
 	0x75, 0x08,                    //   REPORT_SIZE (8)
 	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
@@ -254,6 +279,8 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t report_num)
 	uint8_t inputData[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE]= {0};
 	uint16_t pulse_length = 0;
 	uint32_t color_grb = 0;
+	uint16_t joystickLeftCalibData[6] = {0};
+	uint16_t joystickRightCalibData[6] = {0};
 	USBD_CUSTOM_HID_HandleTypeDef  *hhid = (USBD_CUSTOM_HID_HandleTypeDef*)hUsbDeviceFS.pClassData;
 	memcpy(inputData, hhid->Report_buf, USBD_CUSTOMHID_OUTREPORT_BUF_SIZE);
 
@@ -272,6 +299,7 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t report_num)
 		
 		case 5:
 			kbState->isDelayMeasureTestEnabled = (inputData[1] & 0x01); // delay test control
+			// BT boot mode control
 			if((inputData[2] & 0x01) == 1)
 			{
 				bt121_fw_update->startBTBootMode = 1;
@@ -280,12 +308,20 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t report_num)
 			{
 				bt121_fw_update->stopBTBootMode = 1;
 			}
+			// joysticks calibration mode control
+			kbState->JoysticksCalibrationModeControl(inputData[4] & 0x01);
 			break;
 
 		case 6:
 			bt121_fw_update->isBtFwUpdateStarted = 1;
 			memcpy(bt121_fw_update->btFwPacket64b, &inputData[1], USBD_CUSTOMHID_OUTREPORT_BUF_SIZE-1);
 			bt121_fw_update->isBtReadyToReceiveNextPacket = 0;
+			break;
+
+		case 8:
+			memcpy(joystickLeftCalibData, &inputData[1], sizeof(joystickLeftCalibData));
+			memcpy(joystickRightCalibData, &inputData[sizeof(joystickLeftCalibData)+1], sizeof(joystickRightCalibData));
+			kbState->SaveJoysticksCalibrationData(joystickLeftCalibData, joystickRightCalibData);
 			break;
 
 		default:

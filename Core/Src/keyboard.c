@@ -12,16 +12,20 @@ static uint8_t scanKeyboard(void);
 static void StartTimer(void);
 static void calcJoystickCoords(JoystickData* jd, int8_t* x, int8_t* y);
 static uint8_t isJoystickPositionChanged(JoystickData* jd);
+static void joysticksCalibrationModeControl(uint8_t is_enabled);
+static void saveJoysticksCalibrationData(uint16_t* joystickLeftCD, uint16_t* joystickRightCD);
 
 extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim8;
 extern ADC_HandleTypeDef hadc1;
 
-KeyboardState keyboardState = {0, 0, 0, StartTimer, setFrontLedColor, setStateLedColor, scanKeyboard};
+KeyboardState keyboardState = {0, 0, 0, StartTimer, setFrontLedColor, setStateLedColor, scanKeyboard, joysticksCalibrationModeControl, saveJoysticksCalibrationData};
 KeyboardState *kbState;
 
 JoystickData joystickLeft = {3748, 366, 2056, 3731, 354, 2048, 2056, 2048}; // default values from schematic
 JoystickData joystickRight = {3723, 380, 2046, 3724, 384, 2030, 2046, 2030}; // default values from schematic
+
+volatile uint8_t isJoysticksCalibrationModeEnabled = 0;
 
 #ifdef USE_IIR_FILTER
 // init IIR filters data structs
@@ -33,15 +37,15 @@ IIR_FilterData iir_LP_50Hz_HPDET = {2, 32, {10543, 21086, 10543}, {16384, -25575
 #else
 // init FIR filters data structs
 FIR_FilterData fir_LP_25Hz_J1V = {524288, {2815, 4280, 5933, 7764, 9760, 11898, 14150, 16476, 18830, 21154, 23379, 25426, 27204,
-		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {0}};
+		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {2048}};
 FIR_FilterData fir_LP_25Hz_J1H = {524288, {2815, 4280, 5933, 7764, 9760, 11898, 14150, 16476, 18830, 21154, 23379, 25426, 27204,
-		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {0}};
+		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {2048}};
 FIR_FilterData fir_LP_25Hz_J2V = {524288, {2815, 4280, 5933, 7764, 9760, 11898, 14150, 16476, 18830, 21154, 23379, 25426, 27204,
-		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {0}};
+		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {2048}};
 FIR_FilterData fir_LP_25Hz_J2H = {524288, {2815, 4280, 5933, 7764, 9760, 11898, 14150, 16476, 18830, 21154, 23379, 25426, 27204,
-		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {0}};
+		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {2048}};
 FIR_FilterData fir_LP_25Hz_HPDET = {524288, {2815, 4280, 5933, 7764, 9760, 11898, 14150, 16476, 18830, 21154, 23379, 25426, 27204,
-		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {0}};
+		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {2048}};
 #endif
 
 uint8_t prev_kb_state = 0x3F;
@@ -110,10 +114,15 @@ static uint8_t scanKeyboard(void)
 	uint8_t needToSendReport = 0;
 	uint8_t isDelayTestButtonPressed = 0;
 	uint8_t reportData[10] = {0};
+	uint8_t joysticksRawReportData[10] = {0};
 	int8_t j1_h = 0;
 	int8_t j1_v = 0;
 	int8_t j2_h = 0;
 	int8_t j2_v = 0;
+	uint16_t j1_h_raw = 0;
+	uint16_t j1_v_raw = 0;
+	uint16_t j2_h_raw = 0;
+	uint16_t j2_v_raw = 0;
 
 	// prepare report data
 	reportData[0] = 0x01; // report number
@@ -198,14 +207,42 @@ static uint8_t scanKeyboard(void)
 	// get battery charge value
 	reportData[9] = 100; // TODO: add real data
 
+	// if joysticks calibration mode enabled, lock this report transmit
 	if(needToSendReport)
 	{
-		// send report via USB
-		USBD_COMP_HID_SendReport_FS(reportData, sizeof(reportData));
-		//send report via Bluetooth, if it is connected to host
-		if(bt121_drv->IsHID_EndpointConnected())
+		if(isJoysticksCalibrationModeEnabled)
 		{
-			bt121_drv->SendInputReport(reportData[0], &reportData[1], sizeof(reportData)-1);
+			j1_h_raw = joystickLeft.h_value;
+			j1_v_raw = joystickLeft.v_value;
+			j2_h_raw = joystickRight.h_value;
+			j2_v_raw = joystickRight.v_value;
+			// prepare report data
+			joysticksRawReportData[0] = 0x09; // report ID
+			joysticksRawReportData[1] = (uint8_t)(j1_h_raw>>8);
+			joysticksRawReportData[2] = (uint8_t)(j1_h_raw & 0xFF);
+			joysticksRawReportData[3] = (uint8_t)(j1_v_raw>>8);
+			joysticksRawReportData[4] = (uint8_t)(j1_v_raw & 0xFF);
+			joysticksRawReportData[5] = (uint8_t)(j2_h_raw>>8);
+			joysticksRawReportData[6] = (uint8_t)(j2_h_raw & 0xFF);
+			joysticksRawReportData[7] = (uint8_t)(j2_v_raw>>8);
+			joysticksRawReportData[8] = (uint8_t)(j2_v_raw & 0xFF);
+			// send report via USB
+			USBD_COMP_HID_SendReport_FS(joysticksRawReportData, sizeof(joysticksRawReportData));
+			// send report via Bluetooth, if it is connected to host
+			if(bt121_drv->IsHID_EndpointConnected())
+			{
+				bt121_drv->SendInputReport(joysticksRawReportData[0], &joysticksRawReportData[1], sizeof(joysticksRawReportData)-1);
+			}
+		}
+		else
+		{
+			// send report via USB
+			USBD_COMP_HID_SendReport_FS(reportData, sizeof(reportData));
+			// send report via Bluetooth, if it is connected to host
+			if(bt121_drv->IsHID_EndpointConnected())
+			{
+				bt121_drv->SendInputReport(reportData[0], &reportData[1], sizeof(reportData)-1);
+			}
 		}
 	}
 
@@ -224,29 +261,61 @@ static void StartTimer(void)
 	}
 }
 
+static void joysticksCalibrationModeControl(uint8_t is_enabled)
+{
+	isJoysticksCalibrationModeEnabled = is_enabled;
+}
+
+static void saveJoysticksCalibrationData(uint16_t* joystickLeftCD, uint16_t* joystickRightCD)
+{
+	// fill joystick left calibration data struct
+	joystickLeft.h_max = joystickLeftCD[0];
+	joystickLeft.h_min = joystickLeftCD[1];
+	joystickLeft.h_zero = joystickLeftCD[2];
+	joystickLeft.v_max = joystickLeftCD[3];
+	joystickLeft.v_min = joystickLeftCD[4];
+	joystickLeft.v_zero = joystickLeftCD[5];
+
+	// fill joystick right calibration data struct
+	joystickRight.h_max = joystickRightCD[0];
+	joystickRight.h_min = joystickRightCD[1];
+	joystickRight.h_zero = joystickRightCD[2];
+	joystickRight.v_max = joystickRightCD[3];
+	joystickRight.v_min = joystickRightCD[4];
+	joystickRight.v_zero = joystickRightCD[5];
+
+	// save calibration data to flash
+	// TODO: add write to flash function
+	LED_R_GPIO_Port->ODR |= LED_R_Pin; // debug
+}
+
 static void calcJoystickCoords(JoystickData* jd, int8_t* x, int8_t* y)
 {
+	uint16_t h_value = 0, v_value = 0;
+
+	h_value = jd->h_value;
+	v_value = jd->v_value;
 	// calculate x-coordinate
-	if(jd->h_value >= jd->h_zero)
+	if(h_value >= jd->h_zero)
 	{
-		*x = (int8_t)((float)(jd->h_value - jd->h_zero)*127/(jd->h_max - jd->h_zero));
+		*x = (int8_t)((float)(h_value - jd->h_zero)*127/(jd->h_max - jd->h_zero));
 	}
 	else
 	{
-		*x = (int8_t)((float)(jd->h_value - jd->h_zero)*127/(jd->h_zero - jd->h_min));
+		*x = (int8_t)((float)(h_value - jd->h_zero)*127/(jd->h_zero - jd->h_min));
 	}
 	// check limits
 	if(*x > 127) *x = 127;
 	if(*x < -127) *x = -127;
 
 	// calculate y-coordinate
-	if(jd->v_value >= jd->v_zero)
+	if(v_value >= jd->v_zero)
 	{
-		*y = (int8_t)((float)(jd->v_value - jd->v_zero)*127/(jd->v_max - jd->v_zero));
+		*y = (int8_t)((float)(v_value - jd->v_zero)*127/(jd->v_max - jd->v_zero));
 	}
 	else
 	{
-		*y = (int8_t)((float)(jd->v_value - jd->v_zero)*127/(jd->v_zero - jd->v_min));
+		*y = (int8_t)((float)(v_value - jd->v_zero)*127/(jd->v_zero - jd->v_min));
 	}
 	// check limits
 	if(*y > 127) *y = 127;
@@ -256,14 +325,18 @@ static void calcJoystickCoords(JoystickData* jd, int8_t* x, int8_t* y)
 static uint8_t isJoystickPositionChanged(JoystickData* jd)
 {
 	uint8_t res = 0;
+	uint16_t h_value = 0, v_value = 0;
 
-	if(jd->h_value > jd->h_value_prev + MIN_JOYSTICK_DELTA || jd->h_value < jd->h_value_prev - MIN_JOYSTICK_DELTA
-			|| jd->v_value > jd->v_value_prev + MIN_JOYSTICK_DELTA || jd->v_value < jd->v_value_prev - MIN_JOYSTICK_DELTA)
+	h_value = jd->h_value;
+	v_value = jd->v_value;
+
+	if(h_value > jd->h_value_prev + MIN_JOYSTICK_DELTA || h_value < jd->h_value_prev - MIN_JOYSTICK_DELTA
+			|| v_value > jd->v_value_prev + MIN_JOYSTICK_DELTA || v_value < jd->v_value_prev - MIN_JOYSTICK_DELTA)
 	{
 		res = 1;
 
-		jd->h_value_prev = jd->h_value;
-		jd->v_value_prev = jd->v_value;
+		jd->h_value_prev = h_value;
+		jd->v_value_prev = v_value;
 	}
 
 	return res;
