@@ -27,6 +27,7 @@
 #include "usbd_comp.h"
 #include "bt121.h"
 #include "keyboard.h"
+#include "eeprom_emulation.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -112,9 +113,9 @@ int main(void)
   MX_USART3_UART_Init();
   MX_TIM8_Init();
   /* USER CODE BEGIN 2 */
-  initKeyboardState();
   bt121_drv->Init();
-//  kbState->SetStateLedColor(GREEN);
+  eeprom_drv->Init();
+  initKeyboardState();
   /* USER CODE END 2 */
 
   /* Infinite loop */

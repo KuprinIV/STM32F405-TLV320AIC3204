@@ -5,6 +5,7 @@
 #include "tlv320aic3204.h"
 #include "iir_filter.h"
 #include "fir_filter.h"
+#include "eeprom_emulation.h"
 
 static void setFrontLedColor(uint16_t pulse_length, uint32_t grb_color);
 static void setStateLedColor(StateLedColors color);
@@ -21,7 +22,7 @@ extern TIM_HandleTypeDef htim8;
 extern ADC_HandleTypeDef hadc1;
 
 KeyboardState keyboardState = {0, 0, 0, StartTimer, setFrontLedColor, setStateLedColor, scanKeyboard, joysticksCalibrationModeControl, saveJoysticksCalibrationData};
-KeyboardState *kbState;
+KeyboardState *kbState = &keyboardState;;
 
 JoystickData joystickLeft = {3748, 366, 2056, 3731, 354, 2048, 2056, 2048}; // default values from schematic
 JoystickData joystickRight = {3723, 380, 2046, 3724, 384, 2030, 2046, 2030}; // default values from schematic
@@ -58,7 +59,8 @@ uint16_t hp_detection_level = 4095;
 
 void initKeyboardState(void)
 {
-	kbState = &keyboardState;
+	// read joysticks calibration data from flash
+	readJoysticksCalibrationData(&joystickLeft, &joystickRight);
 	// start ADC conversion
 	HAL_TIM_Base_Start(&htim8);
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcSamples, 5);
@@ -286,46 +288,116 @@ static void saveJoysticksCalibrationData(uint16_t* joystickLeftCD, uint16_t* joy
 	joystickRight.v_zero = joystickRightCD[5];
 
 	// save calibration data to flash
-	// TODO: add write to flash function
-	LED_R_GPIO_Port->ODR |= LED_R_Pin; // debug
+	eeprom_drv->Write(JOYSTICK_LEFT_H_AXIS_MAX_KEY, joystickLeftCD[0]);
+	eeprom_drv->Write(JOYSTICK_LEFT_H_AXIS_MIN_KEY, joystickLeftCD[1]);
+	eeprom_drv->Write(JOYSTICK_LEFT_H_AXIS_ZERO_KEY, joystickLeftCD[2]);
+
+	eeprom_drv->Write(JOYSTICK_LEFT_V_AXIS_MAX_KEY, joystickLeftCD[3]);
+	eeprom_drv->Write(JOYSTICK_LEFT_V_AXIS_MIN_KEY, joystickLeftCD[4]);
+	eeprom_drv->Write(JOYSTICK_LEFT_V_AXIS_ZERO_KEY, joystickLeftCD[5]);
+
+	eeprom_drv->Write(JOYSTICK_RIGHT_H_AXIS_MAX_KEY, joystickRightCD[0]);
+	eeprom_drv->Write(JOYSTICK_RIGHT_H_AXIS_MIN_KEY, joystickRightCD[1]);
+	eeprom_drv->Write(JOYSTICK_RIGHT_H_AXIS_ZERO_KEY, joystickRightCD[2]);
+
+	eeprom_drv->Write(JOYSTICK_RIGHT_V_AXIS_MAX_KEY, joystickRightCD[3]);
+	eeprom_drv->Write(JOYSTICK_RIGHT_V_AXIS_MIN_KEY, joystickRightCD[4]);
+	eeprom_drv->Write(JOYSTICK_RIGHT_V_AXIS_ZERO_KEY, joystickRightCD[5]);
 }
 
 static void readJoysticksCalibrationData(JoystickData* jd_left, JoystickData* jd_right)
 {
-	// TODO: add read data from flash function
+	uint16_t temp = 0;
+	// read calibration data for left joystick
+	if(eeprom_drv->Read(JOYSTICK_LEFT_H_AXIS_MAX_KEY, &temp) == EEPROM_OK)
+	{
+		jd_left->h_max = temp;
+	}
+	if(eeprom_drv->Read(JOYSTICK_LEFT_H_AXIS_MIN_KEY, &temp) == EEPROM_OK)
+	{
+		jd_left->h_min = temp;
+	}
+	if(eeprom_drv->Read(JOYSTICK_LEFT_H_AXIS_ZERO_KEY, &temp) == EEPROM_OK)
+	{
+		jd_left->h_zero = temp;
+	}
+
+	if(eeprom_drv->Read(JOYSTICK_LEFT_V_AXIS_MAX_KEY, &temp) == EEPROM_OK)
+	{
+		jd_left->v_max = temp;
+	}
+	if(eeprom_drv->Read(JOYSTICK_LEFT_V_AXIS_MIN_KEY, &temp) == EEPROM_OK)
+	{
+		jd_left->v_min = temp;
+	}
+	if(eeprom_drv->Read(JOYSTICK_LEFT_V_AXIS_ZERO_KEY, &temp) == EEPROM_OK)
+	{
+		jd_left->v_zero = temp;
+	}
+
+	// read calibration data for right joystick
+	if(eeprom_drv->Read(JOYSTICK_RIGHT_H_AXIS_MAX_KEY, &temp) == EEPROM_OK)
+	{
+		jd_right->h_max = temp;
+	}
+	if(eeprom_drv->Read(JOYSTICK_RIGHT_H_AXIS_MIN_KEY, &temp) == EEPROM_OK)
+	{
+		jd_right->h_min = temp;
+	}
+	if(eeprom_drv->Read(JOYSTICK_RIGHT_H_AXIS_ZERO_KEY, &temp) == EEPROM_OK)
+	{
+		jd_right->h_zero = temp;
+	}
+
+	if(eeprom_drv->Read(JOYSTICK_RIGHT_V_AXIS_MAX_KEY, &temp) == EEPROM_OK)
+	{
+		jd_right->v_max = temp;
+	}
+	if(eeprom_drv->Read(JOYSTICK_RIGHT_V_AXIS_MIN_KEY, &temp) == EEPROM_OK)
+	{
+		jd_right->v_min = temp;
+	}
+	if(eeprom_drv->Read(JOYSTICK_RIGHT_V_AXIS_ZERO_KEY, &temp) == EEPROM_OK)
+	{
+		jd_right->v_zero = temp;
+	}
 }
 
 static void calcJoystickCoords(JoystickData* jd, int8_t* x, int8_t* y)
 {
 	uint16_t h_value = 0, v_value = 0;
+	int16_t xx = 0, yy = 0;
 
 	h_value = jd->h_value;
 	v_value = jd->v_value;
 	// calculate x-coordinate
 	if(h_value >= jd->h_zero)
 	{
-		*x = (int8_t)((float)(h_value - jd->h_zero)*127/(jd->h_max - jd->h_zero));
+		xx = (int8_t)((float)(h_value - jd->h_zero)*127/(jd->h_max - jd->h_zero));
 	}
 	else
 	{
-		*x = (int8_t)((float)(h_value - jd->h_zero)*127/(jd->h_zero - jd->h_min));
+		xx = (int8_t)((float)(h_value - jd->h_zero)*127/(jd->h_zero - jd->h_min));
 	}
 	// check limits
-	if(*x > 127) *x = 127;
-	if(*x < -127) *x = -127;
+	if(xx > 127) xx = 127;
+	if(xx < -127) xx = -127;
 
 	// calculate y-coordinate
 	if(v_value >= jd->v_zero)
 	{
-		*y = (int8_t)((float)(v_value - jd->v_zero)*127/(jd->v_max - jd->v_zero));
+		yy = (int8_t)((float)(v_value - jd->v_zero)*127/(jd->v_max - jd->v_zero));
 	}
 	else
 	{
-		*y = (int8_t)((float)(v_value - jd->v_zero)*127/(jd->v_zero - jd->v_min));
+		yy = (int8_t)((float)(v_value - jd->v_zero)*127/(jd->v_zero - jd->v_min));
 	}
 	// check limits
-	if(*y > 127) *y = 127;
-	if(*y < -127) *y = -127;
+	if(yy > 127) yy = 127;
+	if(yy < -127) yy = -127;
+
+	*x = (int8_t)xx;
+	*y = (int8_t)yy;
 }
 
 static uint8_t isJoystickPositionChanged(JoystickData* jd)
