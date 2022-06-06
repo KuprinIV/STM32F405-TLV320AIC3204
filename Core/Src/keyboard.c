@@ -93,7 +93,7 @@ static void setFrontLedColor(uint16_t pulse_length, uint32_t grb_color)
 	TIM4->CR1 |= TIM_CR1_CEN; // TIM4 enable
 
 	// start timer for limiting pulse length
-	if(pulse_length > 0)
+	if(pulse_length > 1)
 	{
 		TIM5->ARR = pulse_length-1;
 		TIM5->EGR |= TIM_EGR_UG; // call update event for setting actual ARR register value
