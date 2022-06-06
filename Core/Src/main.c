@@ -511,6 +511,7 @@ static void MX_Timers_Init(void)
 	TIM7->ARR = 65535;
 	TIM7->DIER |= TIM_DIER_UIE; // update interrupt enable
 	TIM7->CR1 |= TIM_CR1_ARPE; // enable ARR register preload
+	TIM7->EGR |= TIM_EGR_UG;
 	// configure interrupt
 	HAL_NVIC_SetPriority(TIM7_IRQn, 1, 0);
 	HAL_NVIC_EnableIRQ(TIM7_IRQn);
