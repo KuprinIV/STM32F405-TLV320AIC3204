@@ -373,11 +373,11 @@ static void calcJoystickCoords(JoystickData* jd, int8_t* x, int8_t* y)
 	// calculate x-coordinate
 	if(h_value >= jd->h_zero)
 	{
-		xx = (int8_t)((float)(h_value - jd->h_zero)*127/(jd->h_max - jd->h_zero));
+		xx = (int16_t)((float)(h_value - jd->h_zero)*127/(jd->h_max - jd->h_zero));
 	}
 	else
 	{
-		xx = (int8_t)((float)(h_value - jd->h_zero)*127/(jd->h_zero - jd->h_min));
+		xx = (int16_t)((float)(h_value - jd->h_zero)*127/(jd->h_zero - jd->h_min));
 	}
 	// check limits
 	if(xx > 127) xx = 127;
@@ -386,11 +386,11 @@ static void calcJoystickCoords(JoystickData* jd, int8_t* x, int8_t* y)
 	// calculate y-coordinate
 	if(v_value >= jd->v_zero)
 	{
-		yy = (int8_t)((float)(v_value - jd->v_zero)*127/(jd->v_max - jd->v_zero));
+		yy = (int16_t)((float)(v_value - jd->v_zero)*127/(jd->v_max - jd->v_zero));
 	}
 	else
 	{
-		yy = (int8_t)((float)(v_value - jd->v_zero)*127/(jd->v_zero - jd->v_min));
+		yy = (int16_t)((float)(v_value - jd->v_zero)*127/(jd->v_zero - jd->v_min));
 	}
 	// check limits
 	if(yy > 127) yy = 127;
