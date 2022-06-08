@@ -42,6 +42,7 @@ typedef struct
 	uint8_t isDelayMeasureTestEnabled;
 	uint16_t delayBetweenStimAndResponse;
 	uint8_t isScanningTimerUpdated;
+	uint8_t isDfuModeEnabled;
 	// functions
 	void (*StartDelayMeasureTimer)(void);
 	void (*SetFrontLedColor)(uint16_t pulse_length, uint32_t grb_color);

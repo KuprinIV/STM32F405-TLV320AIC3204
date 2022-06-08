@@ -42,6 +42,8 @@
 #define ADDR_FLASH_SECTOR_10    ((uint32_t)0x080C0000) /* Base @ of Sector 10, 128 Kbytes */
 #define ADDR_FLASH_SECTOR_11    ((uint32_t)0x080E0000) /* Base @ of Sector 11, 128 Kbytes */
 
+#define DFU_SIGNATURE_SECTOR  	FLASH_SECTOR_2
+
 typedef enum {
   PAGE_CLEARED = 0xFFFFFFFF,
   PAGE_ACTIVE = 0x00000000,
@@ -63,6 +65,7 @@ typedef struct
 	EepromResult (*Init)(void);
 	EepromResult (*Read)(uint16_t varId, uint16_t *varValue);
 	EepromResult (*Write)(uint16_t varId, uint16_t varValue);
+	EepromResult (*ResetDfuSignature)(void);
 }EepromDrv;
 
 extern EepromDrv* eeprom_drv;

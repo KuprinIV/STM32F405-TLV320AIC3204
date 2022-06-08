@@ -82,6 +82,8 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
   uint16_t btSleepCounter = 0;
+
+  SCB->VTOR = FLASH_BASE|0x10000; // offset vector table
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -143,6 +145,13 @@ int main(void)
 		  {
 			  bt121_drv->SetEnabled(0); // disable BT
 		  }
+	  }
+	  // go to DFU bootloader
+	  if(kbState->isDfuModeEnabled)
+	  {
+		  kbState->isDfuModeEnabled = 0;
+		  eeprom_drv->ResetDfuSignature();
+		  HAL_NVIC_SystemReset();
 	  }
 	  // handle firmware update task, if it started
 	  bt121_drv->UpdateFirmware();

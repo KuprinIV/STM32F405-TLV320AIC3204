@@ -21,7 +21,7 @@ extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim8;
 extern ADC_HandleTypeDef hadc1;
 
-KeyboardState keyboardState = {0, 0, 0, StartTimer, setFrontLedColor, setStateLedColor, scanKeyboard, joysticksCalibrationModeControl, saveJoysticksCalibrationData};
+KeyboardState keyboardState = {0, 0, 0, 0, StartTimer, setFrontLedColor, setStateLedColor, scanKeyboard, joysticksCalibrationModeControl, saveJoysticksCalibrationData};
 KeyboardState *kbState = &keyboardState;;
 
 JoystickData joystickLeft = {3748, 366, 2056, 3731, 354, 2048, 2056, 2048}; // default values from schematic

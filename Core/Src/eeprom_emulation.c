@@ -12,6 +12,7 @@ static uint16_t varIdList[VAR_NUM] = {JOYSTICK_LEFT_H_AXIS_MIN_KEY, JOYSTICK_LEF
 static EepromResult EEPROM_Init(void);
 static EepromResult EEPROM_Read(uint16_t varId, uint16_t *varValue);
 static EepromResult EEPROM_Write(uint16_t varId, uint16_t varValue);
+static EepromResult EEPROM_ResetDfuSignature(void);
 // inner functions
 static uint32_t FLASH_Read(uint32_t address);
 static PageState EEPROM_ReadPageState(PageIdx idx);
@@ -23,7 +24,7 @@ static EepromResult EEPROM_CopyPageData(PageIdx oldPage, PageIdx newPage);
 static EepromResult EEPROM_WriteData(uint32_t address, uint16_t varId, uint16_t varValue);
 static EepromResult EEPROM_PageTransfer(PageIdx activePage, uint16_t varId, uint16_t varValue);
 
-EepromDrv eeprom = {EEPROM_Init, EEPROM_Read, EEPROM_Write};
+EepromDrv eeprom = {EEPROM_Init, EEPROM_Read, EEPROM_Write, EEPROM_ResetDfuSignature};
 EepromDrv* eeprom_drv = &eeprom;
 
 EepromResult EEPROM_Init()
@@ -179,6 +180,42 @@ EepromResult EEPROM_Write(uint16_t varId, uint16_t varValue)
   }
 
   return res;
+}
+
+static EepromResult EEPROM_ResetDfuSignature(void)
+{
+	EepromResult res = EEPROM_OK;
+	FLASH_EraseInitTypeDef erase;
+	HAL_StatusTypeDef flashRes = HAL_OK;
+	uint32_t pageError = 0;
+
+	erase.TypeErase = FLASH_TYPEERASE_SECTORS;
+	erase.Banks = FLASH_BANK_1;
+	erase.Sector = DFU_SIGNATURE_SECTOR;
+	erase.NbSectors = 1;
+	erase.VoltageRange = FLASH_VOLTAGE_RANGE_3;
+
+	HAL_FLASH_Unlock();
+	flashRes = HAL_FLASHEx_Erase(&erase, &pageError);
+	/* Note: If an erase operation in Flash memory also concerns data in the data or instruction cache,
+	 you have to make sure that these data are rewritten before they are accessed during code
+	 execution. If this cannot be done safely, it is recommended to flush the caches by setting the
+	 DCRST and ICRST bits in the FLASH_CR register. */
+	__HAL_FLASH_DATA_CACHE_DISABLE();
+	__HAL_FLASH_INSTRUCTION_CACHE_DISABLE();
+
+	__HAL_FLASH_DATA_CACHE_RESET();
+	__HAL_FLASH_INSTRUCTION_CACHE_RESET();
+
+	__HAL_FLASH_INSTRUCTION_CACHE_ENABLE();
+	__HAL_FLASH_DATA_CACHE_ENABLE();
+	HAL_FLASH_Lock();
+
+	if (flashRes != HAL_OK)
+	{
+	res = EEPROM_ERROR;
+	}
+	return res;
 }
 
 EepromResult EEPROM_WriteData(uint32_t address, uint16_t varId, uint16_t varValue)

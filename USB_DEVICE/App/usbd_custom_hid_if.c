@@ -281,6 +281,7 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t report_num)
 	uint32_t color_grb = 0;
 	uint16_t joystickLeftCalibData[6] = {0};
 	uint16_t joystickRightCalibData[6] = {0};
+
 	USBD_CUSTOM_HID_HandleTypeDef  *hhid = (USBD_CUSTOM_HID_HandleTypeDef*)hUsbDeviceFS.pClassData;
 	memcpy(inputData, hhid->Report_buf, USBD_CUSTOMHID_OUTREPORT_BUF_SIZE);
 
@@ -308,6 +309,8 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t report_num)
 			{
 				bt121_fw_update->stopBTBootMode = 1;
 			}
+			// enter into DFU mode
+			kbState->isDfuModeEnabled = (inputData[3] & 0x01);
 			// joysticks calibration mode control
 			kbState->JoysticksCalibrationModeControl(inputData[4] & 0x01);
 			break;
