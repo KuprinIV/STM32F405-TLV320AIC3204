@@ -13,6 +13,7 @@ static EepromResult EEPROM_Init(void);
 static EepromResult EEPROM_Read(uint16_t varId, uint16_t *varValue);
 static EepromResult EEPROM_Write(uint16_t varId, uint16_t varValue);
 static EepromResult EEPROM_ResetDfuSignature(void);
+static EepromResult EEPROM_SaveDfuSignature(void);
 // inner functions
 static uint32_t FLASH_Read(uint32_t address);
 static PageState EEPROM_ReadPageState(PageIdx idx);
@@ -24,7 +25,7 @@ static EepromResult EEPROM_CopyPageData(PageIdx oldPage, PageIdx newPage);
 static EepromResult EEPROM_WriteData(uint32_t address, uint16_t varId, uint16_t varValue);
 static EepromResult EEPROM_PageTransfer(PageIdx activePage, uint16_t varId, uint16_t varValue);
 
-EepromDrv eeprom = {EEPROM_Init, EEPROM_Read, EEPROM_Write, EEPROM_ResetDfuSignature};
+EepromDrv eeprom = {EEPROM_Init, EEPROM_Read, EEPROM_Write, EEPROM_SaveDfuSignature, EEPROM_ResetDfuSignature};
 EepromDrv* eeprom_drv = &eeprom;
 
 EepromResult EEPROM_Init()
@@ -180,6 +181,26 @@ EepromResult EEPROM_Write(uint16_t varId, uint16_t varValue)
   }
 
   return res;
+}
+
+static EepromResult EEPROM_SaveDfuSignature(void)
+{
+	EepromResult res = EEPROM_OK;
+	HAL_StatusTypeDef flashRes = HAL_OK;
+
+	// program signature value into flash memory, if it's not programmed yet
+	if ((*(__IO uint32_t*)(DFU_SIGNATURE_ADDRESS)) == 0xFFFFFFFF)
+	{
+		HAL_FLASH_Unlock();
+		flashRes = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, DFU_SIGNATURE_ADDRESS, DFU_SIGNATURE);
+		if(flashRes != HAL_OK)
+		{
+			res = EEPROM_ERROR;
+		}
+		HAL_FLASH_Lock();
+	}
+
+	return res;
 }
 
 static EepromResult EEPROM_ResetDfuSignature(void)

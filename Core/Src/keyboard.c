@@ -61,6 +61,8 @@ void initKeyboardState(void)
 {
 	// read joysticks calibration data from flash
 	readJoysticksCalibrationData(&joystickLeft, &joystickRight);
+	// save DFU signature
+	eeprom_drv->SaveDfuSignature();
 	// start ADC conversion
 	HAL_TIM_Base_Start(&htim8);
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcSamples, 5);
