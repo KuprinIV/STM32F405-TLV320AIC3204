@@ -63,15 +63,16 @@
   * @{
   */
 
-#define USBD_VID     0xACCA
-#define USBD_LANGID_STRING     1033
-#define USBD_MANUFACTURER_STRING     "Neurosoft"
-#define USBD_PID_FS     22339
-#define USBD_PRODUCT_STRING_FS     "Keyboard KF3"
-#define USBD_CONFIGURATION_STRING_FS     ""
-#define USBD_INTERFACE_STRING_FS     ""
+#define USBD_VID     					0xACCA
+#define USBD_LANGID_STRING     			1033
+#define USBD_MANUFACTURER_STRING     	"Neurosoft"
+#define USBD_PID_FS     				22339
+#define USBD_PRODUCT_STRING_FS     		"Keyboard KF3"
+#define USBD_CONFIGURATION_STRING_FS    ""
+#define USBD_INTERFACE_STRING_FS     	""
+#define USBD_SERIALNUMBER_STRING_FS     "0000001A"
 
-#define USB_SIZ_BOS_DESC            0x0C
+#define USB_SIZ_BOS_DESC            	0x0C
 
 /* USER CODE BEGIN PRIVATE_DEFINES */
 
@@ -102,9 +103,6 @@
   * @brief Private functions declaration.
   * @{
   */
-
-static void Get_SerialNum(void);
-static void IntToUnicode(uint32_t value, uint8_t * pbuf, uint8_t len);
 
 /**
   * @}
@@ -239,7 +237,17 @@ __ALIGN_BEGIN uint8_t USBD_StrDesc[USBD_MAX_STR_DESC_SIZ] __ALIGN_END;
 __ALIGN_BEGIN uint8_t USBD_StringSerial[USB_SIZ_STRING_SERIAL] __ALIGN_END = {
   USB_SIZ_STRING_SERIAL,
   USB_DESC_TYPE_STRING,
+  '1', 0,
+  '2', 0,
+  '3', 0,
+  '4', 0,
+  '5', 0,
+  '6', 0,
+  '7', 0,
+  '8', 0
 };
+
+uint8_t SerialNum[USB_SERIAL_NUM_SIZE+1] = {'1','2','3','4','5','6','7','8','\0'};
 
 /**
   * @}
@@ -317,15 +325,13 @@ uint8_t * USBD_FS_ManufacturerStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *l
 uint8_t * USBD_FS_SerialStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
 {
   UNUSED(speed);
-  *length = USB_SIZ_STRING_SERIAL;
-
   /* Update the serial number string descriptor with the data from the unique
    * ID */
-  Get_SerialNum();
+  USBD_GetString(SerialNum, USBD_StrDesc, length);
   /* USER CODE BEGIN USBD_FS_SerialStrDescriptor */
 
   /* USER CODE END USBD_FS_SerialStrDescriptor */
-  return (uint8_t *) USBD_StringSerial;
+  return USBD_StrDesc;
 }
 
 /**
@@ -381,55 +387,6 @@ uint8_t * USBD_FS_USR_BOSDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
 }
 #endif /* (USBD_LPM_ENABLED == 1) */
 
-/**
-  * @brief  Create the serial number string descriptor
-  * @param  None
-  * @retval None
-  */
-static void Get_SerialNum(void)
-{
-  uint32_t deviceserial0, deviceserial1, deviceserial2;
-
-  deviceserial0 = *(uint32_t *) DEVICE_ID1;
-  deviceserial1 = *(uint32_t *) DEVICE_ID2;
-  deviceserial2 = *(uint32_t *) DEVICE_ID3;
-
-  deviceserial0 += deviceserial2;
-
-  if (deviceserial0 != 0)
-  {
-    IntToUnicode(deviceserial0, &USBD_StringSerial[2], 8);
-    IntToUnicode(deviceserial1, &USBD_StringSerial[18], 4);
-  }
-}
-
-/**
-  * @brief  Convert Hex 32Bits value into char
-  * @param  value: value to convert
-  * @param  pbuf: pointer to the buffer
-  * @param  len: buffer length
-  * @retval None
-  */
-static void IntToUnicode(uint32_t value, uint8_t * pbuf, uint8_t len)
-{
-  uint8_t idx = 0;
-
-  for (idx = 0; idx < len; idx++)
-  {
-    if (((value >> 28)) < 0xA)
-    {
-      pbuf[2 * idx] = (value >> 28) + '0';
-    }
-    else
-    {
-      pbuf[2 * idx] = (value >> 28) + 'A' - 10;
-    }
-
-    value = value << 4;
-
-    pbuf[2 * idx + 1] = 0;
-  }
-}
 /**
   * @}
   */
