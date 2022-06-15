@@ -110,14 +110,14 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
 	0x81, 0x82,                    //   INPUT (Data,Var,Abs)
 
-	// delay result report (bytes: 0 - report ID (0x02), 1 - delay MSB, 2 - delay LSB)
+	// get report from device (bytes: 0 - report ID (0x02), 1 - get report command: 0x01 - send report, other - no action)
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x02,               	   //   REPORT_ID (2)
-	0x95, 0x02,                    //   REPORT_COUNT (2)
+	0x95, 0x01,                    //   REPORT_COUNT (1)
 	0x75, 0x08,                    //   REPORT_SIZE (8)
 	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
-	0x81, 0x82,                    //   INPUT (Data,Var,Abs)
+	0x91, 0x82,                    //   INPUT (Data,Var,Abs)
 
 	// audio control report (bytes: 0 - report ID (0x03), 1 - interface direction (0x00 - out, 0x01 - in), 2 - output selection (0x00 - headphones,
 	// 0x01 - loudspeakers), 3 - input selection (0x00 - IN1, 0x01 - IN3))
@@ -287,6 +287,10 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t report_num)
 
 	switch(report_num)
 	{
+		case 2:
+			kbState->isGetReportCmdReceived = (inputData[1] & 0x01);
+			break;
+
 		case 3:
 			tlv320aic3204_drv->SelectOutput(inputData[2] & 0x01); // select codec's outputs
 			tlv320aic3204_drv->SelectInput(inputData[3] & 0x01); // select codec's input
