@@ -25,7 +25,7 @@
 #include "usbd_conf.h"
 
 /* USER CODE BEGIN INCLUDE */
-
+#include "eeprom_emulation.h"
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -70,7 +70,6 @@
 #define USBD_PRODUCT_STRING_FS     		"Keyboard KF3"
 #define USBD_CONFIGURATION_STRING_FS    ""
 #define USBD_INTERFACE_STRING_FS     	""
-#define USBD_SERIALNUMBER_STRING_FS     "0000001A"
 
 #define USB_SIZ_BOS_DESC            	0x0C
 
@@ -234,18 +233,6 @@ __ALIGN_BEGIN uint8_t USBD_StrDesc[USBD_MAX_STR_DESC_SIZ] __ALIGN_END;
 #if defined ( __ICCARM__ ) /*!< IAR Compiler */
   #pragma data_alignment=4
 #endif
-__ALIGN_BEGIN uint8_t USBD_StringSerial[USB_SIZ_STRING_SERIAL] __ALIGN_END = {
-  USB_SIZ_STRING_SERIAL,
-  USB_DESC_TYPE_STRING,
-  '1', 0,
-  '2', 0,
-  '3', 0,
-  '4', 0,
-  '5', 0,
-  '6', 0,
-  '7', 0,
-  '8', 0
-};
 
 uint8_t SerialNum[USB_SERIAL_NUM_SIZE+1] = {'1','2','3','4','5','6','7','8','\0'};
 
@@ -327,6 +314,7 @@ uint8_t * USBD_FS_SerialStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
   UNUSED(speed);
   /* Update the serial number string descriptor with the data from the unique
    * ID */
+  eeprom_drv->GetSerialNumber(SerialNum, 8);
   USBD_GetString(SerialNum, USBD_StrDesc, length);
   /* USER CODE BEGIN USBD_FS_SerialStrDescriptor */
 

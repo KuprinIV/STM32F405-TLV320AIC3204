@@ -1,5 +1,9 @@
 #include "eeprom_emulation.h"
 
+// define constants
+__attribute__ ((section (".constants"), used)) const uint8_t FW_VERSION[] = "0.0";
+__attribute__ ((section (".constants"), used)) const uint8_t SERIAL_NUMBER[8] = {'1','2','3','4','5','6','7','8'};
+__attribute__ ((section (".constants"), used)) const uint32_t DFU_SIGNATURE = 0x3DC23DC2;
 
 static uint32_t pageSectors[PAGES_NUM] = {PAGE_0_SECTOR, PAGE_1_SECTOR};
 static uint32_t pageAddress[PAGES_NUM] = {ADDR_FLASH_SECTOR_10, ADDR_FLASH_SECTOR_11};
@@ -13,7 +17,8 @@ static EepromResult EEPROM_Init(void);
 static EepromResult EEPROM_Read(uint16_t varId, uint16_t *varValue);
 static EepromResult EEPROM_Write(uint16_t varId, uint16_t varValue);
 static EepromResult EEPROM_ResetDfuSignature(void);
-static EepromResult EEPROM_SaveDfuSignature(void);
+static EepromResult EEPROM_GetSerialNumber(uint8_t* sn_buf, uint8_t length);
+static EepromResult EEPROM_GetFwVersion(uint8_t* fw_ver_buf, uint8_t length);
 // inner functions
 static uint32_t FLASH_Read(uint32_t address);
 static PageState EEPROM_ReadPageState(PageIdx idx);
@@ -25,7 +30,7 @@ static EepromResult EEPROM_CopyPageData(PageIdx oldPage, PageIdx newPage);
 static EepromResult EEPROM_WriteData(uint32_t address, uint16_t varId, uint16_t varValue);
 static EepromResult EEPROM_PageTransfer(PageIdx activePage, uint16_t varId, uint16_t varValue);
 
-EepromDrv eeprom = {EEPROM_Init, EEPROM_Read, EEPROM_Write, EEPROM_SaveDfuSignature, EEPROM_ResetDfuSignature};
+EepromDrv eeprom = {EEPROM_Init, EEPROM_Read, EEPROM_Write, EEPROM_ResetDfuSignature, EEPROM_GetSerialNumber, EEPROM_GetFwVersion};
 EepromDrv* eeprom_drv = &eeprom;
 
 EepromResult EEPROM_Init()
@@ -183,36 +188,23 @@ EepromResult EEPROM_Write(uint16_t varId, uint16_t varValue)
   return res;
 }
 
-static EepromResult EEPROM_SaveDfuSignature(void)
-{
-	EepromResult res = EEPROM_OK;
-	HAL_StatusTypeDef flashRes = HAL_OK;
-
-	// program signature value into flash memory, if it's not programmed yet
-	if ((*(__IO uint32_t*)(DFU_SIGNATURE_ADDRESS)) == 0xFFFFFFFF)
-	{
-		HAL_FLASH_Unlock();
-		flashRes = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, DFU_SIGNATURE_ADDRESS, DFU_SIGNATURE);
-		if(flashRes != HAL_OK)
-		{
-			res = EEPROM_ERROR;
-		}
-		HAL_FLASH_Lock();
-	}
-
-	return res;
-}
-
 static EepromResult EEPROM_ResetDfuSignature(void)
 {
 	EepromResult res = EEPROM_OK;
 	FLASH_EraseInitTypeDef erase;
 	HAL_StatusTypeDef flashRes = HAL_OK;
 	uint32_t pageError = 0;
+	uint32_t sector_data[4] = {0};
+
+	// store serial number and firmware version to temp buffer
+	for(uint8_t i = 0; i < 4; i++)
+	{
+		sector_data[i] = *(__IO uint32_t*)(SERIAL_NUMBER_ADDRESS + 4*i);
+	}
 
 	erase.TypeErase = FLASH_TYPEERASE_SECTORS;
 	erase.Banks = FLASH_BANK_1;
-	erase.Sector = DFU_SIGNATURE_SECTOR;
+	erase.Sector = CONSTANTS_SECTOR;
 	erase.NbSectors = 1;
 	erase.VoltageRange = FLASH_VOLTAGE_RANGE_3;
 
@@ -230,13 +222,50 @@ static EepromResult EEPROM_ResetDfuSignature(void)
 
 	__HAL_FLASH_INSTRUCTION_CACHE_ENABLE();
 	__HAL_FLASH_DATA_CACHE_ENABLE();
-	HAL_FLASH_Lock();
 
 	if (flashRes != HAL_OK)
 	{
-	res = EEPROM_ERROR;
+		res = EEPROM_ERROR;
 	}
+	else
+	{
+		// restore serial number and firmware version into flash memory
+		for(uint8_t i = 0; i < 4; i++)
+		{
+			flashRes = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, (uint32_t)(SERIAL_NUMBER_ADDRESS+4*i), sector_data[i]);
+			if(flashRes != HAL_OK)
+			{
+				res = EEPROM_ERROR;
+				break;
+			}
+		}
+	}
+
+	HAL_FLASH_Lock();
+
 	return res;
+}
+
+static EepromResult EEPROM_GetSerialNumber(uint8_t* sn_buf, uint8_t length)
+{
+	for(uint8_t i = 0; i < length; i++)
+	{
+		sn_buf[i] = *(__IO uint8_t*)(SERIAL_NUMBER_ADDRESS+i);
+	}
+
+	return EEPROM_OK;
+}
+
+static EepromResult EEPROM_GetFwVersion(uint8_t* fw_ver_buf, uint8_t length)
+{
+	for(uint8_t i = 0; i < length; i++)
+	{
+		fw_ver_buf[i] = *(__IO uint8_t*)(FW_VERSION_ADDRESS+i);
+		// if we've reached null-symbol, stop read
+		if(fw_ver_buf[i] == '\0') break;
+	}
+
+	return EEPROM_OK;
 }
 
 EepromResult EEPROM_WriteData(uint32_t address, uint16_t varId, uint16_t varValue)

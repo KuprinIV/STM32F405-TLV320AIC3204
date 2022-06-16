@@ -21,7 +21,7 @@ extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim8;
 extern ADC_HandleTypeDef hadc1;
 
-KeyboardState keyboardState = {0, 0, 0, 0, 0, StartTimer, setFrontLedColor, setStateLedColor, scanKeyboard, joysticksCalibrationModeControl, saveJoysticksCalibrationData};
+KeyboardState keyboardState = {0, 0, 0, 0, StartTimer, setFrontLedColor, setStateLedColor, scanKeyboard, joysticksCalibrationModeControl, saveJoysticksCalibrationData};
 KeyboardState *kbState = &keyboardState;;
 
 JoystickData joystickLeft = {3748, 366, 2056, 3731, 354, 2048, 2056, 2048}; // default values from schematic
@@ -61,8 +61,6 @@ void initKeyboardState(void)
 {
 	// read joysticks calibration data from flash
 	readJoysticksCalibrationData(&joystickLeft, &joystickRight);
-	// save DFU signature
-	eeprom_drv->SaveDfuSignature();
 	// start ADC conversion
 	HAL_TIM_Base_Start(&htim8);
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcSamples, 5);
@@ -211,12 +209,6 @@ static uint8_t scanKeyboard(void)
 
 	// get battery charge value
 	reportData[9] = 100; // TODO: add real data
-
-	if(kbState->isGetReportCmdReceived)
-	{
-		needToSendReport = kbState->isGetReportCmdReceived;
-		kbState->isGetReportCmdReceived = 0;
-	}
 
 	// if joysticks calibration mode enabled, lock this report transmit
 	if(needToSendReport)

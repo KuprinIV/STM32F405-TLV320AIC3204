@@ -27,6 +27,7 @@
 #include "tlv320aic3204.h"
 #include "bt121.h"
 #include "keyboard.h"
+#include "eeprom_emulation.h"
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -192,6 +193,15 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
 	0x81, 0x82,                    //   INPUT (Data,Var,Abs)
+
+	// firmware version string (format like this "0.0" - by bytes {'0', '.', '0', '\0'})
+	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
+	0x85, 0x0A,               	   //   REPORT_ID (10)
+	0x95, 0x08,                    //   REPORT_COUNT (8)
+	0x75, 0x08,                    //   REPORT_SIZE (8)
+	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
+	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
+	0x81, 0x82,                    //   INPUT (Data,Var,Abs)
   /* USER CODE END 0 */
   0xC0    /*     END_COLLECTION	             */
 };
@@ -277,6 +287,7 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t report_num)
 {
   /* USER CODE BEGIN 6 */
 	uint8_t inputData[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE]= {0};
+	uint8_t fw_version_report[10] = {0};
 	uint16_t pulse_length = 0;
 	uint32_t color_grb = 0;
 	uint16_t joystickLeftCalibData[6] = {0};
@@ -288,7 +299,9 @@ static int8_t CUSTOM_HID_OutEvent_FS(uint8_t report_num)
 	switch(report_num)
 	{
 		case 2:
-			kbState->isGetReportCmdReceived = (inputData[1] & 0x01);
+			fw_version_report[0] = 0x0A; // report ID
+			eeprom_drv->GetFwVersion(&fw_version_report[1], 9);
+			USBD_COMP_HID_SendReport_FS(fw_version_report, sizeof(fw_version_report));
 			break;
 
 		case 3:
