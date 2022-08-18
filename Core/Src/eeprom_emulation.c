@@ -1,7 +1,7 @@
 #include "eeprom_emulation.h"
 
 // define constants
-__attribute__ ((section (".constants"), used)) const uint8_t FW_VERSION[] = "0.0";
+__attribute__ ((section (".constants"), used)) const uint8_t FW_VERSION[] = "1.0";
 __attribute__ ((section (".constants"), used)) const uint8_t SERIAL_NUMBER[8] = {'1','2','3','4','5','6','7','8'};
 __attribute__ ((section (".constants"), used)) const uint32_t DFU_SIGNATURE = 0x3DC23DC2;
 
