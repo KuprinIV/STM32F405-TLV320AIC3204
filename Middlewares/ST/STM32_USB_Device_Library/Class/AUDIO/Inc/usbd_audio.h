@@ -53,23 +53,6 @@
 #define USBD_AUDIO_FREQ                      48000U
 #endif
 
-/* Volume. See UAC Spec 1.0 p.77 */
-#ifndef USBD_AUDIO_VOL_DEFAULT
-#define USBD_AUDIO_VOL_DEFAULT                        0x0000U
-#endif
-
-#ifndef USBD_AUDIO_VOL_MAX
-#define USBD_AUDIO_VOL_MAX                            0x3000U
-#endif
-
-#ifndef USBD_AUDIO_VOL_MIN
-#define USBD_AUDIO_VOL_MIN                            0x8001U
-#endif
-
-#ifndef USBD_AUDIO_VOL_STEP
-#define USBD_AUDIO_VOL_STEP                           0x00AFU
-#endif /* Total number of steps can't be too many, host will complain. */
-
 /* Interface */
 #ifndef USBD_MAX_NUM_INTERFACES
 #define USBD_MAX_NUM_INTERFACES                       4U
@@ -199,7 +182,7 @@
                                   (uint8_t)((((frq / 1000U + 1U) * 1U * 2U) >> 8) & 0xFFU)
 
 /* Feature Unit Config */
-#define AUDIO_CONTROL_FEATURES AUDIO_CONTROL_MUTE | AUDIO_CONTROL_VOL
+#define AUDIO_CONTROL_FEATURES AUDIO_CONTROL_MUTE
 
 /**
  * The minimum distance that the wr_ptr should keep before rd_ptr to
@@ -258,7 +241,6 @@ typedef struct
   uint8_t                   out_rd_enable;
   uint16_t                  out_rd_ptr;
   uint16_t                  out_wr_ptr;
-  int16_t                   vol;
   /* mic data */
   uint16_t*                 in_buffer;
   uint8_t*					in_packet_buffer;

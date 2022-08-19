@@ -536,6 +536,7 @@ static void tlv320aic3204_setDigitalDACVolume(int8_t volume)
 
 	//check volume limits
 	if(volume > 48) volume = 48;
+	if(volume < -127) volume = -127;
 
 	// write DAC gain value for both channels
 	writeRegister(0x41, volume);
