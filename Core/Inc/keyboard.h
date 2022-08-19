@@ -24,7 +24,7 @@
 #define BIT0 									19
 #define BIT1 									40
 
-#define HEADPHONES_DETECTION_THRESHOLD_LEVEL 	3100
+#define HEADPHONES_DETECTION_THRESHOLD_LEVEL 	2500
 #define MIN_JOYSTICK_DELTA						20
 
 //#define USE_IIR_FILTER							1
