@@ -55,11 +55,11 @@
 
 /* Volume. See UAC Spec 1.0 p.77 */
 #ifndef USBD_AUDIO_VOL_DEFAULT
-#define USBD_AUDIO_VOL_DEFAULT                        0x0000U
+#define USBD_AUDIO_VOL_DEFAULT                        0xFFADU
 #endif
 
 #ifndef USBD_AUDIO_VOL_MAX
-#define USBD_AUDIO_VOL_MAX                            0x3000U
+#define USBD_AUDIO_VOL_MAX                            0x0000U
 #endif
 
 #ifndef USBD_AUDIO_VOL_MIN
@@ -67,7 +67,7 @@
 #endif
 
 #ifndef USBD_AUDIO_VOL_STEP
-#define USBD_AUDIO_VOL_STEP                           0x00AFU
+#define USBD_AUDIO_VOL_STEP                           0x0148U
 #endif /* Total number of steps can't be too many, host will complain. */
 
 /* Interface */

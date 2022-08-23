@@ -89,6 +89,14 @@ static void tlv320aic3204_setDigitalDACVolume(int8_t volume);
 
 /**
  * @brief
+ * Set audio output volume
+ * @params
+ * volume - value from 0 to 100 % from full scale. 1% is 1 dB
+ */
+static void tlv320aic3204_setVolume(int8_t volume);
+
+/**
+ * @brief
  * Set internal codec's LDO state
  * @params
  * is_enabled - LDO state (0 - power down, 1 - power up)
@@ -134,16 +142,16 @@ AudioCodecDrv tlv320aic3204_driver =
 		tlv320aic3204_selectInput,
 		tlv320aic3204_muteControl,
 		tlv320aic3204_setOutDriverGain,
-		tlv320aic3204_setDigitalDACVolume,
+		tlv320aic3204_setVolume,
 		tlv320aic3204_getOutRemainingDataSize,
 		tlv320aic3204_getInRemainingDataSize,
 		tlv320aic3204_StartDataTransfer,
 };
 
 AudioCodecDrv *tlv320aic3204_drv = &tlv320aic3204_driver;
-OutputsType currentOutputs = LOUDSPEAKERS;
-InputsType currentInput = MIC1;
-uint8_t interface_dir = 0; // output
+volatile OutputsType currentOutputs = LOUDSPEAKERS;
+volatile InputsType currentInput = MIC1;
+volatile int8_t outDriverGain = 0;
 
 static void writeRegister(uint8_t addr, uint8_t value)
 {
@@ -291,7 +299,7 @@ static void tlv320aic3204_CodecInit(void)
 	writeRegister(PAGE_SELECT_REGISTER, 0);
 	// Power up the Left and Right DAC Channels with route the Left Audio digital data to
 	// Left Channel DAC and Right Audio digital data to Right Channel DAC, soft-step volume change enable
-	writeRegister(0x3F, 0xD5);
+	writeRegister(0x3F, 0xD6);
 	test = readRegister(0x3F);
 	// Unmute the DAC digital volume control
 	writeRegister(0x40, 0x00);
@@ -502,30 +510,34 @@ static void tlv320aic3204_setOutDriverGain(int8_t gain)
 	if(gain < -6) gain = -6;
 	if(gain > 29) gain = 29;
 
-	switch(currentOutputs)
+	if(gain != outDriverGain)
 	{
-		case HEADPHONES:
-		default:
-			// gain HPL control
-			reg_value = readRegister(0x10) & 0xC0; // reset gain bits
-			reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
-			writeRegister(0x10, reg_value);
-			// gain HPR control
-			reg_value = readRegister(0x11) & 0xC0; // reset gain bits
-			reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
-			writeRegister(0x11, reg_value);
-			break;
+		outDriverGain = gain;
+		switch(currentOutputs)
+		{
+			case HEADPHONES:
+			default:
+				// gain HPL control
+				reg_value = readRegister(0x10) & 0xC0; // reset gain bits
+				reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
+				writeRegister(0x10, reg_value);
+				// gain HPR control
+				reg_value = readRegister(0x11) & 0xC0; // reset gain bits
+				reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
+				writeRegister(0x11, reg_value);
+				break;
 
-		case LOUDSPEAKERS:
-			// gain LOL control
-			reg_value = readRegister(0x12) & 0xC0; //reset gain bits
-			reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
-			writeRegister(0x12, reg_value);
-			// gain LOR control
-			reg_value = readRegister(0x13) & 0xC0; //reset gain bits
-			reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
-			writeRegister(0x13, reg_value);
-			break;
+			case LOUDSPEAKERS:
+				// gain LOL control
+				reg_value = readRegister(0x12) & 0xC0; //reset gain bits
+				reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
+				writeRegister(0x12, reg_value);
+				// gain LOR control
+				reg_value = readRegister(0x13) & 0xC0; //reset gain bits
+				reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
+				writeRegister(0x13, reg_value);
+				break;
+		}
 	}
 }
 
@@ -536,10 +548,34 @@ static void tlv320aic3204_setDigitalDACVolume(int8_t volume)
 
 	//check volume limits
 	if(volume > 48) volume = 48;
+	if(volume < -127) volume = -127;
 
 	// write DAC gain value for both channels
 	writeRegister(0x41, volume);
 	writeRegister(0x42, volume);
+}
+
+static void tlv320aic3204_setVolume(int8_t volume)
+{
+	int8_t dac_vol = 0;
+	int8_t offset_vol = 0;
+	if(currentOutputs == LOUDSPEAKERS) offset_vol = -1;
+	if(volume >= 13)
+	{
+		dac_vol = (int8_t)((volume<<1)-152);
+		tlv320aic3204_setDigitalDACVolume(dac_vol);
+		tlv320aic3204_setOutDriverGain(offset_vol);
+	}
+	else if(volume < 13 && volume > (6 - offset_vol))
+	{
+		tlv320aic3204_setDigitalDACVolume(-126);
+		tlv320aic3204_setOutDriverGain(volume - 13 + offset_vol);
+	}
+	else
+	{
+		tlv320aic3204_setDigitalDACVolume(-126);
+		tlv320aic3204_setOutDriverGain(-6);
+	}
 }
 
 static void tlv320aic3204_LDO_PowerCtrl(uint8_t is_enabled)

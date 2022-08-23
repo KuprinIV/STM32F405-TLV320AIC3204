@@ -140,7 +140,7 @@ static void AUDIO_IN_Restart(USBD_HandleTypeDef* pdev);
 
 static void Prepare_IN_Packet(USBD_HandleTypeDef* pdev);
 
-static int8_t VOL_PERCENT(int16_t vol);
+static uint8_t VOL_PERCENT(int16_t vol);
 
 /**
   * @}
@@ -440,6 +440,19 @@ __ALIGN_BEGIN static uint8_t USBD_AUDIO_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIE
     0x01,
     0x00,
 };
+
+// Volume values, got from USB after system volume changing from 0 to 100 %
+int16_t usbVolumesArray[101] = {
+    -32767, -17836, -15180, -13617, -12505, -11640, -10934, -10336, -9818, -9361, -8952,
+    -8582, -8244, -7933, -7645, -7377, -7126, -6890, -6668, -6458, -6259,
+    -6069, -5888, -5716, -5550, -5391, -5239, -5092, -4951, -4814, -4682,
+    -4555, -4432, -4312, -4196, -4083, -3974, -3867, -3763, -3662, -3564,
+    -3468, -3374, -3282, -3193, -3106, -3020, -2937, -2855, -2774, -2696,
+    -2619, -2543, -2469, -2397, -2325, -2255, -2186, -2119, -2052, -1987,
+    -1922, -1859, -1797, -1736, -1675, -1616, -1557, -1500, -1443, -1387,
+    -1332, -1277, -1224, -1171, -1119, -1067, -1016, -966, -917, -868,
+    -819, -772, -724, -678, -632, -586, -541, -497, -453, -409,
+    -366, -324, -282, -240, -199, -158, -118, -78, -39, 0};
 
 volatile uint32_t tx_flag = 1;
 volatile uint8_t isDataReceivedFromUSB = 0;
@@ -1357,9 +1370,52 @@ uint8_t USBD_AUDIO_RegisterInterface(USBD_HandleTypeDef* pdev,
 }
 
 /* Convert USB volume value to % */
-int8_t VOL_PERCENT(int16_t vol)
+uint8_t VOL_PERCENT(int16_t vol)
 {
-	return (int8_t)(vol>>7);
+    uint8_t index = 50;
+    uint8_t corr = 0;
+    int16_t minValue = 0;
+    int16_t maxValue = 0;
+
+    for(uint8_t i = 0; ; i++)
+    {
+    	if(index >= 1)
+    		minValue = usbVolumesArray[index-1]+1;
+    	else
+    		minValue = usbVolumesArray[0];
+
+    	if(index <= 99)
+    		maxValue = usbVolumesArray[index+1]-1;
+    	else
+    		maxValue = usbVolumesArray[100];
+
+        if(vol >= minValue && vol <= maxValue)
+        {
+            break;  // we found index
+        }
+        else
+        {
+        	// calculate index correction
+            if(i < 4)
+            {
+                corr = 50>>(i+1);
+            }
+            else
+            {
+                corr = 1;
+            }
+            // change index value
+            if(vol < usbVolumesArray[index])
+            {
+                index -= corr;
+            }
+            else if(vol > usbVolumesArray[index])
+            {
+                index += corr;
+            }
+        }
+    }
+    return index;
 }
 
 void USBD_AUDIO_UpdateBuffers(USBD_HandleTypeDef* pdev, AUDIO_OffsetTypeDef offset)
