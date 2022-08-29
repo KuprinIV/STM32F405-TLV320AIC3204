@@ -560,22 +560,10 @@ static void tlv320aic3204_setVolume(int8_t volume)
 	int8_t dac_vol = 0;
 	int8_t offset_vol = 0;
 	if(currentOutputs == LOUDSPEAKERS) offset_vol = -1;
-	if(volume >= 13)
-	{
-		dac_vol = (int8_t)((volume<<1)-152);
-		tlv320aic3204_setDigitalDACVolume(dac_vol);
-		tlv320aic3204_setOutDriverGain(offset_vol);
-	}
-	else if(volume < 13 && volume > (6 - offset_vol))
-	{
-		tlv320aic3204_setDigitalDACVolume(-126);
-		tlv320aic3204_setOutDriverGain(volume - 13 + offset_vol);
-	}
-	else
-	{
-		tlv320aic3204_setDigitalDACVolume(-126);
-		tlv320aic3204_setOutDriverGain(-6);
-	}
+
+	dac_vol = (int8_t)(volume - 100 + MAX_VOLUME);
+	tlv320aic3204_setDigitalDACVolume(dac_vol);
+	tlv320aic3204_setOutDriverGain(offset_vol);
 }
 
 static void tlv320aic3204_LDO_PowerCtrl(uint8_t is_enabled)

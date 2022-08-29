@@ -3,9 +3,10 @@
 
 #include "stm32f4xx_hal.h"
 
-#define PAGE_SELECT_REGISTER 0x00
-#define DMA_MAX_SZE                          0xFFFF
-#define DMA_MAX(x)           (((x) <= DMA_MAX_SZE)? (x):DMA_MAX_SZE)
+#define PAGE_SELECT_REGISTER 	0x00
+#define DMA_MAX_SZE             0xFFFF
+#define DMA_MAX(x)           	(((x) <= DMA_MAX_SZE)? (x):DMA_MAX_SZE)
+#define MAX_VOLUME				24
 
 typedef enum
 {
