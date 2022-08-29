@@ -55,7 +55,7 @@
 
 /* Interface */
 #ifndef USBD_MAX_NUM_INTERFACES
-#define USBD_MAX_NUM_INTERFACES                       4U
+#define USBD_MAX_NUM_INTERFACES                       3U
 #endif
 
 /* bEndpointAddress, see UAC 1.0 spec, p.61 */
@@ -190,8 +190,6 @@
  */
 #define AUDIO_BUF_SAFEZONE                            ((uint16_t)((USBD_AUDIO_FREQ / 1000U) * 2U * 4U))
 
-//#define USE_BUFFERS_STATE_INDICATION					1
-
     /* Audio Commands enumeration */
 typedef enum
 {
@@ -257,8 +255,6 @@ typedef struct
 {
     int8_t  (*Init)         (uint32_t  AudioFreq, uint32_t Volume, uint32_t options);
     int8_t  (*DeInit)       (uint32_t options);
-    int8_t  (*AudioCmd)     (uint16_t* pbuf, uint32_t size, uint8_t cmd);
-    int8_t  (*VolumeCtl)    (uint8_t vol);
     int8_t  (*MuteCtl)      (uint8_t cmd);
 }USBD_AUDIO_ItfTypeDef;
 /**

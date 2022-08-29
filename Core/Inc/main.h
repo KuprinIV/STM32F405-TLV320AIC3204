@@ -50,8 +50,6 @@ extern "C" {
 
 /* USER CODE END EM */
 
-void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
-
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
@@ -60,46 +58,19 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define LED_R_Pin GPIO_PIN_13
-#define LED_R_GPIO_Port GPIOC
-#define LED_G_Pin GPIO_PIN_14
-#define LED_G_GPIO_Port GPIOC
+#define MIC_DET_Pin GPIO_PIN_1
+#define MIC_DET_GPIO_Port GPIOC
 #define HP_DET_Pin GPIO_PIN_2
 #define HP_DET_GPIO_Port GPIOC
-#define SB6_Pin GPIO_PIN_0
-#define SB6_GPIO_Port GPIOA
-#define SB5_Pin GPIO_PIN_1
-#define SB5_GPIO_Port GPIOA
-#define SB4_Pin GPIO_PIN_2
-#define SB4_GPIO_Port GPIOA
-#define SB3_Pin GPIO_PIN_3
-#define SB3_GPIO_Port GPIOA
-#define SB2_Pin GPIO_PIN_4
-#define SB2_GPIO_Port GPIOA
-#define SB1_Pin GPIO_PIN_5
-#define SB1_GPIO_Port GPIOA
-#define J1_AV_Pin GPIO_PIN_6
-#define J1_AV_GPIO_Port GPIOA
-#define J1_AH_Pin GPIO_PIN_7
-#define J1_AH_GPIO_Port GPIOA
-#define J2_AV_Pin GPIO_PIN_4
-#define J2_AV_GPIO_Port GPIOC
-#define J2_AH_Pin GPIO_PIN_5
-#define J2_AH_GPIO_Port GPIOC
 #define LS_EN_Pin GPIO_PIN_2
-#define LS_EN_GPIO_Port GPIOB
+#define LS_EN_GPIO_Port GPIOA
+#define LED_G_Pin GPIO_PIN_6
+#define LED_G_GPIO_Port GPIOA
 #define CODEC_RST_Pin GPIO_PIN_7
 #define CODEC_RST_GPIO_Port GPIOC
-#define AUD_EN_Pin GPIO_PIN_8
-#define AUD_EN_GPIO_Port GPIOC
-#define BT_BOOT_Pin GPIO_PIN_12
-#define BT_BOOT_GPIO_Port GPIOC
-#define BT_RST_Pin GPIO_PIN_2
-#define BT_RST_GPIO_Port GPIOD
-#define LED_Pin GPIO_PIN_6
-#define LED_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
-
+#define HEADPHONES_DETECTION_THRESHOLD_LEVEL 	2500
+#define MIC_DETECTION_THRESHOLD_LEVEL 			1240
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

@@ -24,8 +24,6 @@
 
 /* USER CODE BEGIN INCLUDE */
 #include "tlv320aic3204.h"
-#include "keyboard.h"
-#include "usbd_comp.h"
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -34,7 +32,7 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-
+extern USBD_HandleTypeDef hUsbDeviceFS;
 /* USER CODE END PV */
 
 /** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
@@ -120,8 +118,6 @@ extern USBD_HandleTypeDef hUsbDeviceFS;
 
 static int8_t AUDIO_Init_FS(uint32_t AudioFreq, uint32_t Volume, uint32_t options);
 static int8_t AUDIO_DeInit_FS(uint32_t options);
-static int8_t AUDIO_AudioCmd_FS(uint16_t* pbuf, uint32_t size, uint8_t cmd);
-static int8_t AUDIO_VolumeCtl_FS(uint8_t vol);
 static int8_t AUDIO_MuteCtl_FS(uint8_t cmd);
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_DECLARATION */
 
@@ -135,8 +131,6 @@ USBD_AUDIO_ItfTypeDef USBD_AUDIO_fops_FS =
 {
   AUDIO_Init_FS,
   AUDIO_DeInit_FS,
-  AUDIO_AudioCmd_FS,
-  AUDIO_VolumeCtl_FS,
   AUDIO_MuteCtl_FS,
 };
 
@@ -153,8 +147,7 @@ static int8_t AUDIO_Init_FS(uint32_t AudioFreq, uint32_t Volume, uint32_t option
   /* USER CODE BEGIN 0 */
   tlv320aic3204_drv->InitInterface();
   tlv320aic3204_drv->CodecInit();
-
-  AUDIO_VolumeCtl_FS(12);
+  tlv320aic3204_drv->SetVolume(12);
 
   return (USBD_OK);
   /* USER CODE END 0 */
@@ -169,45 +162,8 @@ static int8_t AUDIO_DeInit_FS(uint32_t options)
 {
   /* USER CODE BEGIN 1 */
   tlv320aic3204_drv->DeInit();
-  tlv320aic3204_drv->PowerOnOff(0);
   return (USBD_OK);
   /* USER CODE END 1 */
-}
-
-/**
-  * @brief  Handles AUDIO command.
-  * @param  pbuf: Pointer to buffer of data to be sent
-  * @param  size: Number of data to be sent (in bytes)
-  * @param  cmd: Command opcode
-  * @retval USBD_OK if all operations are OK else USBD_FAIL
-  */
-static int8_t AUDIO_AudioCmd_FS(uint16_t* pbuf, uint32_t size, uint8_t cmd)
-{
-  /* USER CODE BEGIN 2 */
-  switch(cmd)
-  {
-    case AUDIO_CMD_START:
-		if(kbState->isDelayMeasureTestEnabled)
-		{
-			kbState->StartDelayMeasureTimer();
-		}
-    	break;
-  }
-  return (USBD_OK);
-  /* USER CODE END 2 */
-}
-
-/**
-  * @brief  Controls AUDIO Volume.
-  * @param  vol: volume level (0..100)
-  * @retval USBD_OK if all operations are OK else USBD_FAIL
-  */
-static int8_t AUDIO_VolumeCtl_FS(uint8_t vol)
-{
-  /* USER CODE BEGIN 3 */
-	tlv320aic3204_drv->SetVolume((int8_t)(vol)); // set volume
-	return (USBD_OK);
-  /* USER CODE END 3 */
 }
 
 /**
@@ -226,12 +182,12 @@ static int8_t AUDIO_MuteCtl_FS(uint8_t cmd)
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
 void HAL_I2SEx_TxRxCpltCallback(I2S_HandleTypeDef *hi2s)
 {
-	USBD_COMP_AUDIO_UpdateBuffers(AUDIO_OFFSET_FULL);
+	USBD_AUDIO_UpdateBuffers(&hUsbDeviceFS, AUDIO_OFFSET_FULL);
 }
 
 void HAL_I2SEx_TxRxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
 {
-	USBD_COMP_AUDIO_UpdateBuffers(AUDIO_OFFSET_HALF);
+	USBD_AUDIO_UpdateBuffers(&hUsbDeviceFS, AUDIO_OFFSET_HALF);
 }
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
 

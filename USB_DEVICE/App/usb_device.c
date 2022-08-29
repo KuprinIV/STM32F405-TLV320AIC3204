@@ -24,9 +24,11 @@
 #include "usb_device.h"
 #include "usbd_core.h"
 #include "usbd_desc.h"
+#include "usbd_audio.h"
+#include "usbd_audio_if.h"
 
 /* USER CODE BEGIN Includes */
-#include "usbd_comp.h"
+
 /* USER CODE END Includes */
 
 /* USER CODE BEGIN PV */
@@ -71,11 +73,11 @@ void MX_USB_DEVICE_Init(void)
   {
     Error_Handler();
   }
-  if (USBD_RegisterClass(&hUsbDeviceFS, &USBD_COMP) != USBD_OK)
+  if (USBD_RegisterClass(&hUsbDeviceFS, &USBD_AUDIO) != USBD_OK)
   {
     Error_Handler();
   }
-  if (USBD_COMP_RegisterInterface(&hUsbDeviceFS, &USBD_COMP_fops_FS) != USBD_OK)
+  if (USBD_AUDIO_RegisterInterface(&hUsbDeviceFS, &USBD_AUDIO_fops_FS) != USBD_OK)
   {
     Error_Handler();
   }

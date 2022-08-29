@@ -23,7 +23,7 @@
 #include "stm32f4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "keyboard.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -62,7 +62,6 @@ extern DMA_HandleTypeDef hdma_adc1;
 extern I2C_HandleTypeDef hi2c2;
 extern DMA_HandleTypeDef hdma_i2s2_ext_rx;
 extern DMA_HandleTypeDef hdma_spi2_tx;
-extern DMA_HandleTypeDef hdma_tim4_ch1;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -206,28 +205,6 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
-  * @brief This function handles DMA1 stream0 global interrupt.
-  */
-void DMA1_Stream0_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Stream0_IRQn 0 */
-
-  /* USER CODE END DMA1_Stream0_IRQn 0 */
-//  HAL_DMA_IRQHandler(&hdma_tim4_ch1);
-	// DMA transfer complete interrupt
-	if(DMA1->LISR & DMA_LISR_TCIF0)
-	{
-		DMA1->LIFCR = DMA_LIFCR_CTCIF0; // clear interrupt flag
-		DMA1_Stream0->CR &= ~DMA_SxCR_EN; // stop DMA
-
-		TIM4->CR1 &= ~TIM_CR1_CEN; // TIM4 enable
-	}
-  /* USER CODE BEGIN DMA1_Stream0_IRQn 1 */
-
-  /* USER CODE END DMA1_Stream0_IRQn 1 */
-}
-
-/**
   * @brief This function handles DMA1 stream3 global interrupt.
   */
 void DMA1_Stream3_IRQHandler(void)
@@ -279,7 +256,7 @@ void I2C2_ER_IRQHandler(void)
   /* USER CODE END I2C2_ER_IRQn 0 */
   HAL_I2C_ER_IRQHandler(&hi2c2);
   /* USER CODE BEGIN I2C2_ER_IRQn 1 */
-  kbState->SetStateLedColor(RED);
+
   /* USER CODE END I2C2_ER_IRQn 1 */
 }
 
@@ -312,32 +289,6 @@ void OTG_FS_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
-void TIM5_IRQHandler(void)
-{
-	if(TIM5->SR & TIM_SR_UIF)
-	{
-		TIM5->SR &= ~TIM_SR_UIF; // reset flag
-		TIM5->CR1 &= ~TIM_CR1_CEN; // stop timer
-		kbState->SetFrontLedColor(0, 0x00000000); // disable front LED
-	}
-}
 
-void TIM6_DAC_IRQHandler(void)
-{
-	if(TIM6->SR & TIM_SR_UIF)
-	{
-		TIM6->SR &= ~TIM_SR_UIF; // reset flag
-		kbState->isScanningTimerUpdated = 1;
-	}
-}
-
-void TIM7_IRQHandler(void)
-{
-	if(TIM7->SR & TIM_SR_UIF)
-	{
-		TIM7->SR &= ~TIM_SR_UIF; // reset flag
-		TIM7->CR1 &= ~TIM_CR1_CEN; // stop timer
-	}
-}
 /* USER CODE END 1 */
 

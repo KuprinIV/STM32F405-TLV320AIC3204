@@ -24,10 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "tlv320aic3204.h"
-#include "usbd_comp.h"
-#include "bt121.h"
-#include "keyboard.h"
-#include "eeprom_emulation.h"
+#include "fir_filter.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,15 +44,18 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
-
-TIM_HandleTypeDef htim4;
 TIM_HandleTypeDef htim8;
-DMA_HandleTypeDef hdma_tim4_ch1;
-
-UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
+// init FIR filters data structs
+FIR_FilterData fir_LP_25Hz_MICDET = {524288, {2815, 4280, 5933, 7764, 9760, 11898, 14150, 16476, 18830, 21154, 23379, 25426, 27204,
+		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {2048}};
+FIR_FilterData fir_LP_25Hz_HPDET = {524288, {2815, 4280, 5933, 7764, 9760, 11898, 14150, 16476, 18830, 21154, 23379, 25426, 27204,
+		28611, 29530, 29853, 29530, 28611, 27204, 25426, 23379, 21154, 18830, 16476, 14150, 11898, 9760, 7764, 5933, 4280, 2815}, {2048}};
 
+volatile uint16_t adcSamples[2] = {0}; // IN11 - MIC_DET; IN12 - HP_DET
+volatile uint16_t hp_detection_level = 4095;
+volatile uint16_t mic_detection_level = 4095;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -63,7 +63,6 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
-static void MX_USART3_UART_Init(void);
 static void MX_TIM8_Init(void);
 /* USER CODE BEGIN PFP */
 static void MX_Timers_Init(void);
@@ -81,9 +80,7 @@ static void MX_Timers_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  uint16_t btSleepCounter = 0;
 
-  SCB->VTOR = FLASH_BASE|0x10000; // offset vector table
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -106,18 +103,19 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
 
-  tlv320aic3204_drv->PowerOnOff(1);
   tlv320aic3204_drv->Reset();
 
   MX_Timers_Init();
   MX_USB_DEVICE_Init();
   MX_ADC1_Init();
-  MX_USART3_UART_Init();
   MX_TIM8_Init();
   /* USER CODE BEGIN 2 */
-  bt121_drv->Init();
-  eeprom_drv->Init();
-  initKeyboardState();
+  // start ADC conversion
+  HAL_TIM_Base_Start(&htim8);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcSamples, 2);
+
+  // indicate work state
+  LED_G_GPIO_Port->ODR |= LED_G_Pin;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -127,34 +125,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  if(kbState->isScanningTimerUpdated)
-	  {
-		  kbState->isScanningTimerUpdated = 0;
-		  // if any new keyboard action was made, reset BT sleep mode counter
-		  if(kbState->ScanKeyboard())
-		  {
-			  btSleepCounter = 0;
-			  bt121_drv->SetEnabled(1); // enable BT
-		  }
-		  // check BT module to sleep
-		  if(btSleepCounter < BT_SLEEP_DELAY)
-		  {
-			  btSleepCounter++;
-		  }
-		  else
-		  {
-			  bt121_drv->SetEnabled(0); // disable BT
-		  }
-	  }
-	  // go to DFU bootloader
-	  if(kbState->isDfuModeEnabled)
-	  {
-		  kbState->isDfuModeEnabled = 0;
-		  eeprom_drv->ResetDfuSignature();
-		  HAL_NVIC_SystemReset();
-	  }
-	  // handle firmware update task, if it started
-	  bt121_drv->UpdateFirmware();
   }
   /* USER CODE END 3 */
 }
@@ -179,7 +149,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 8;
+  RCC_OscInitStruct.PLL.PLLM = 25;
   RCC_OscInitStruct.PLL.PLLN = 375;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
   RCC_OscInitStruct.PLL.PLLQ = 8;
@@ -230,7 +200,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
   hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T8_TRGO;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 5;
+  hadc1.Init.NbrOfConversion = 2;
   hadc1.Init.DMAContinuousRequests = ENABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -239,7 +209,7 @@ static void MX_ADC1_Init(void)
   }
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_6;
+  sConfig.Channel = ADC_CHANNEL_11;
   sConfig.Rank = 1;
   sConfig.SamplingTime = ADC_SAMPLETIME_144CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
@@ -248,32 +218,8 @@ static void MX_ADC1_Init(void)
   }
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_7;
-  sConfig.Rank = 2;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
-  */
   sConfig.Channel = ADC_CHANNEL_12;
-  sConfig.Rank = 3;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
-  */
-  sConfig.Channel = ADC_CHANNEL_14;
-  sConfig.Rank = 4;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
-  */
-  sConfig.Channel = ADC_CHANNEL_15;
-  sConfig.Rank = 5;
+  sConfig.Rank = 2;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -331,56 +277,18 @@ static void MX_TIM8_Init(void)
 }
 
 /**
-  * @brief USART3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART3_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART3_Init 0 */
-
-  /* USER CODE END USART3_Init 0 */
-
-  /* USER CODE BEGIN USART3_Init 1 */
-
-  /* USER CODE END USART3_Init 1 */
-  huart3.Instance = USART3;
-  huart3.Init.BaudRate = 115200;
-  huart3.Init.WordLength = UART_WORDLENGTH_8B;
-  huart3.Init.StopBits = UART_STOPBITS_1;
-  huart3.Init.Parity = UART_PARITY_NONE;
-  huart3.Init.Mode = UART_MODE_TX_RX;
-  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART3_Init 2 */
-
-  /* USER CODE END USART3_Init 2 */
-
-}
-
-/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
 {
-
   /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
   __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 2, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
   /* DMA2_Stream0_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 2, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
-
 }
 
 /**
@@ -393,52 +301,30 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, LED_R_Pin|LED_G_Pin|CODEC_RST_Pin|AUD_EN_Pin
-                          |BT_BOOT_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, LS_EN_Pin|LED_G_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LS_EN_GPIO_Port, LS_EN_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(CODEC_RST_GPIO_Port, CODEC_RST_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(BT_RST_GPIO_Port, BT_RST_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pins : LED_R_Pin LED_G_Pin CODEC_RST_Pin AUD_EN_Pin
-                           BT_BOOT_Pin */
-  GPIO_InitStruct.Pin = LED_R_Pin|LED_G_Pin|CODEC_RST_Pin|AUD_EN_Pin
-                          |BT_BOOT_Pin;
+  /*Configure GPIO pins : LS_EN_Pin LED_G_Pin */
+  GPIO_InitStruct.Pin = LS_EN_Pin|LED_G_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : SB6_Pin SB5_Pin SB4_Pin SB3_Pin
-                           SB2_Pin SB1_Pin */
-  GPIO_InitStruct.Pin = SB6_Pin|SB5_Pin|SB4_Pin|SB3_Pin
-                          |SB2_Pin|SB1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LS_EN_Pin */
-  GPIO_InitStruct.Pin = LS_EN_Pin;
+  /*Configure GPIO pin : CODEC_RST_Pin */
+  GPIO_InitStruct.Pin = CODEC_RST_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LS_EN_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : BT_RST_Pin */
-  GPIO_InitStruct.Pin = BT_RST_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(BT_RST_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(CODEC_RST_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PA15 */
    GPIO_InitStruct.Pin = GPIO_PIN_15;
@@ -448,15 +334,6 @@ static void MX_GPIO_Init(void)
    GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-   /**TIM4 GPIO Configuration
-   PB6     ------> TIM4_CH1
-   */
-   GPIO_InitStruct.Pin = LED_Pin;
-   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-   GPIO_InitStruct.Alternate = GPIO_AF2_TIM4;
-   HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
 }
 
 /* USER CODE BEGIN 4 */
@@ -480,51 +357,49 @@ static void MX_Timers_Init(void)
 	TIM2->OR |= TIM_OR_ITR1_RMP_1; // OTG FS SOF is connected to the TIM2_ITR1 input
 	TIM2->CCER |= TIM_CCER_CC1E; // Capture enabled
 	TIM2->CR1 |= TIM_CR1_CEN; // Counter enabled
+}
 
-//TIM4 channel 1 init in PWM mode 1 for front LED color setting
-	RCC->APB1ENR |= RCC_APB1ENR_TIM4EN; // TIM4 clock enable
-	TIM4->CCER &= ~TIM_CCER_CC1P;// polarity: active low
-	TIM4->CCMR1 |= TIM_CCMR1_OC1M_2|TIM_CCMR1_OC1M_1|TIM_CCMR1_OC1PE;// PWM mode 1 and enable preload register
-	TIM4->CR1 |= TIM_CR1_ARPE/*|TIM_CR1_DIR*/; // auto-reload preload register enable
-	TIM4->DIER |= TIM_DIER_CC1DE; // enable DMA requests for channel 1
-	TIM4->PSC = 0;  // period
-	TIM4->ARR = 59; // of signal
-	TIM4->BDTR |= TIM_BDTR_MOE; // master output enable
-	TIM4->CCER |= TIM_CCER_CC1E;// TIM4 channel 1 enable
-	// DMA enable for TIM4 CCR1 register write
-	RCC->AHB1ENR |= RCC_AHB1ENR_DMA1EN; // DMA clock enable
-	DMA1_Stream0->PAR = (uint32_t)&TIM4->CCR1;
-	DMA1_Stream0->CR |= (DMA_SxCR_CHSEL_1|DMA_SxCR_MSIZE_0|DMA_SxCR_PSIZE_0|DMA_SxCR_MINC|DMA_SxCR_DIR_0|DMA_SxCR_TCIE);
+// get analog channels data
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+{
+	UNUSED(hadc);
 
-// front LED pulse length timer init (1 ms step)
-	RCC->APB1ENR |= RCC_APB1ENR_TIM5EN; // enable TIM5 clock
-	TIM5->PSC = 47999; // divide internal clock
-	TIM5->DIER |= TIM_DIER_UIE; // update interrupt enable
-	TIM5->CR1 |= TIM_CR1_URS; // only counter overflow generates an update interrupt if enabled
-	// configure interrupt
-	HAL_NVIC_SetPriority(TIM5_IRQn, 1, 0);
-	HAL_NVIC_EnableIRQ(TIM5_IRQn);
+	static uint16_t hp_detection_level_prev = 4095;
+	static uint16_t mic_detection_level_prev = 4095;
 
-// button scanning ang LED blinking timer init (period 10 ms)
-	RCC->APB1ENR |= RCC_APB1ENR_TIM6EN; // enable TIM6 clock
-	TIM6->PSC = 23999; // divide internal clock
-	TIM6->ARR = 19;
-	TIM6->DIER |= TIM_DIER_UIE; // update interrupt enable
-	TIM6->CR1 |= TIM_CR1_ARPE|TIM_CR1_CEN; // enable ARR register preload
-	// configure interrupt
-	HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 2, 0);
-	HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
 
-// measuring delay between stimulus start and button press timer init (1 ms step)
-	RCC->APB1ENR |= RCC_APB1ENR_TIM7EN; // enable TIM7 clock
-	TIM7->PSC = 47999; // divide internal clock
-	TIM7->ARR = 65535;
-	TIM7->DIER |= TIM_DIER_UIE; // update interrupt enable
-	TIM7->CR1 |= TIM_CR1_ARPE; // enable ARR register preload
-	TIM7->EGR |= TIM_EGR_UG;
-	// configure interrupt
-	HAL_NVIC_SetPriority(TIM7_IRQn, 1, 0);
-	HAL_NVIC_EnableIRQ(TIM7_IRQn);
+	mic_detection_level = doFirFilter(&fir_LP_25Hz_MICDET, (int16_t)adcSamples[0]);
+	hp_detection_level = doFirFilter(&fir_LP_25Hz_HPDET, (int16_t)adcSamples[1]);
+
+	// headphones is connected, switch codec's output to headphones
+	if(hp_detection_level_prev >= HEADPHONES_DETECTION_THRESHOLD_LEVEL && hp_detection_level < HEADPHONES_DETECTION_THRESHOLD_LEVEL)
+	{
+		// switch codec's output to headphones
+		tlv320aic3204_drv->SelectOutput(HEADPHONES);
+	}
+	// headphones is disconnected, switch codec's output to loudspeakers
+	if(hp_detection_level_prev < HEADPHONES_DETECTION_THRESHOLD_LEVEL && hp_detection_level >= HEADPHONES_DETECTION_THRESHOLD_LEVEL)
+	{
+		// switch codec's output to loudspeakers
+		tlv320aic3204_drv->SelectOutput(LOUDSPEAKERS);
+	}
+
+	// mic from headset is connected, switch codec's input to MIC3
+	if(mic_detection_level_prev >= MIC_DETECTION_THRESHOLD_LEVEL && mic_detection_level < MIC_DETECTION_THRESHOLD_LEVEL)
+	{
+		// switch codec's input to headset mic
+		tlv320aic3204_drv->SelectInput(MIC3);
+	}
+	// mic from headset is disconnected, switch codec's input to MIC1
+	if(mic_detection_level_prev < MIC_DETECTION_THRESHOLD_LEVEL && mic_detection_level >= MIC_DETECTION_THRESHOLD_LEVEL)
+	{
+		// switch codec's input to mic connector
+		tlv320aic3204_drv->SelectInput(MIC1);
+	}
+
+	// update previous levels
+	hp_detection_level_prev = hp_detection_level;
+	mic_detection_level_prev = mic_detection_level;
 }
 /* USER CODE END 4 */
 
@@ -540,7 +415,6 @@ void Error_Handler(void)
 //  while (1)
 //  {
 //  }
-	kbState->SetStateLedColor(RED);
   /* USER CODE END Error_Handler_Debug */
 }
 

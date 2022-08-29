@@ -1,8 +1,5 @@
 #include "tlv320aic3204.h"
 #include "main.h"
-#include "usbd_comp.h"
-
-extern USBD_HandleTypeDef hUsbDeviceFS;
 
 I2S_HandleTypeDef hi2s2;
 DMA_HandleTypeDef hdma_i2s2_ext_rx;
@@ -168,14 +165,7 @@ static uint8_t readRegister(uint8_t addr)
 
 static void tlv320aic3204_PowerOnOff(uint8_t is_powered)
 {
-	if(is_powered)
-	{
-		AUD_EN_GPIO_Port->ODR |= AUD_EN_Pin; // enable audio part power supply
-	}
-	else
-	{
-		AUD_EN_GPIO_Port->ODR &= ~AUD_EN_Pin; // disable audio part power supply
-	}
+
 }
 
 static void tlv320aic3204_hardwareReset(void)
