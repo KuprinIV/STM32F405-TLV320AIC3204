@@ -70,7 +70,8 @@ void Error_Handler(void);
 #define CODEC_RST_GPIO_Port GPIOC
 /* USER CODE BEGIN Private defines */
 #define HEADPHONES_DETECTION_THRESHOLD_LEVEL 	2500
-#define MIC_DETECTION_THRESHOLD_LEVEL 			1240
+#define MIC_DETECTION_THRESHOLD_LEVEL_MAX		1240
+#define MIC_DETECTION_THRESHOLD_LEVEL_MIN		620
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

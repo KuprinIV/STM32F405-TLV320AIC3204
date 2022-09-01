@@ -66,6 +66,7 @@ static void MX_ADC1_Init(void);
 static void MX_TIM8_Init(void);
 /* USER CODE BEGIN PFP */
 static void MX_Timers_Init(void);
+static uint8_t IsInRange(uint16_t value, uint16_t min, uint16_t max);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -359,6 +360,15 @@ static void MX_Timers_Init(void)
 	TIM2->CR1 |= TIM_CR1_CEN; // Counter enabled
 }
 
+static uint8_t IsInRange(uint16_t value, uint16_t min, uint16_t max)
+{
+	if(value >= min && value <= max)
+	{
+		return 1;
+	}
+	return 0;
+}
+
 // get analog channels data
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
@@ -385,13 +395,15 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 	}
 
 	// mic from headset is connected, switch codec's input to MIC3
-	if(mic_detection_level_prev >= MIC_DETECTION_THRESHOLD_LEVEL && mic_detection_level < MIC_DETECTION_THRESHOLD_LEVEL)
+	if(!IsInRange(mic_detection_level_prev, MIC_DETECTION_THRESHOLD_LEVEL_MIN, MIC_DETECTION_THRESHOLD_LEVEL_MAX)
+			&& IsInRange(mic_detection_level, MIC_DETECTION_THRESHOLD_LEVEL_MIN, MIC_DETECTION_THRESHOLD_LEVEL_MAX))
 	{
 		// switch codec's input to headset mic
 		tlv320aic3204_drv->SelectInput(MIC3);
 	}
 	// mic from headset is disconnected, switch codec's input to MIC1
-	if(mic_detection_level_prev < MIC_DETECTION_THRESHOLD_LEVEL && mic_detection_level >= MIC_DETECTION_THRESHOLD_LEVEL)
+	if(IsInRange(mic_detection_level_prev, MIC_DETECTION_THRESHOLD_LEVEL_MIN, MIC_DETECTION_THRESHOLD_LEVEL_MAX)
+			&& !IsInRange(mic_detection_level, MIC_DETECTION_THRESHOLD_LEVEL_MIN, MIC_DETECTION_THRESHOLD_LEVEL_MAX))
 	{
 		// switch codec's input to mic connector
 		tlv320aic3204_drv->SelectInput(MIC1);
