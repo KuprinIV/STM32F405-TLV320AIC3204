@@ -147,7 +147,7 @@ static int8_t AUDIO_Init_FS(uint32_t AudioFreq, uint32_t Volume, uint32_t option
   /* USER CODE BEGIN 0 */
   tlv320aic3204_drv->InitInterface();
   tlv320aic3204_drv->CodecInit();
-  tlv320aic3204_drv->SetVolume(12);
+  tlv320aic3204_drv->SetVolume(24);
 
   return (USBD_OK);
   /* USER CODE END 0 */
