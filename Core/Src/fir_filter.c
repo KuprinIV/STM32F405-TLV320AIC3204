@@ -24,6 +24,12 @@ z = 0.931900 + j 0.136363
 ***************************************************************/
 #include "fir_filter.h"
 
+/**
+ * @brief Apply FIR filter
+ * @param: filter_data - data structure, that contains filter coefficients and previous input samples
+ * @param: NewSample - new input data sample
+ * @return: Filtered output data sample
+ */
 int16_t doFirFilter(FIR_FilterData* filter_data, int16_t NewSample)
 {
     int32_t y=0;            //output sample

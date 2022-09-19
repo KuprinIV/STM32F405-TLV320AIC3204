@@ -60,7 +60,7 @@ BT121_Drv *bt121_drv = &bt121_drv_ctrl;
 BT121_FwUpdateVars *bt121_fw_update = &bt121_fw_update_struct;
 
 /**
- * @brief Init BT121 module and BGAPI
+ * @brief Init BT121 module
  */
 static void BT121_Init(void)
 {
@@ -83,8 +83,7 @@ static void BT121_Reset(void)
 
 /**
  * @brief BT121 enable state control
- * @params
- * mode: 0 - module disabled, 1 - module enabled
+ * @param mode: 0 - module disabled, 1 - module enabled
  */
 static void BT121_SetEnabled(uint8_t is_enabled)
 {
@@ -93,10 +92,8 @@ static void BT121_SetEnabled(uint8_t is_enabled)
 
 /**
  * @brief BT121 boot mode control
- * @params
- * mode: 0 - boot mode disabled, 1 - boot mode enabled
- * @return
- * 0 - boot mode started, 1 - boot mode not started, 2 - boot state wasn't changed
+ * @param mode: 0 - boot mode disabled, 1 - boot mode enabled
+ * @return 0 - boot mode started, 1 - boot mode not started, 2 - boot state wasn't changed
  */
 static uint8_t BT121_BootModeCtrl(uint8_t mode)
 {
@@ -158,10 +155,8 @@ static uint8_t BT121_BootModeCtrl(uint8_t mode)
 
 /**
  * @brief Write command to BT121 in  boot mode
- * @params
- * cmd: command byte
- * @return
- * 0 - command was sent successfully, 1 - command wasn't sent
+ * @param cmd: command byte
+ * @return 0 - command was sent successfully, 1 - command wasn't sent
  */
 static uint8_t BT121_WriteBootCmd(uint8_t cmd)
 {
@@ -201,12 +196,10 @@ static uint8_t BT121_WriteBootCmd(uint8_t cmd)
 
 /**
  * @brief Write data to BT121 in  boot mode
- * @params
- * pfirst_byte: if equals 0, transfer pbuff immediately
- * pbuff - data pointer
- * size - data array length
- * @return
- * 0 - data was sent successfully, 1 - data wasn't sent,
+ * @param pfirst_byte: if equals 0, transfer pbuff immediately
+ * @param pbuff - data pointer
+ * @param size - data array length
+ * @return 0 - data was sent successfully, 1 - data wasn't sent,
  */
 static uint8_t BT121_WriteBootData(uint8_t *pfirst_byte, uint8_t *pbuff, uint16_t size)
 {
@@ -252,10 +245,8 @@ static uint8_t BT121_WriteBootData(uint8_t *pfirst_byte, uint8_t *pbuff, uint16_
 
 /**
  * @brief Get BT121 bootloader version and commands list type
- * @params
- * pflash_erase_type: commands list
- * @return
- * 0 - operation is successful, 1 - operation is failed
+ * @param pflash_erase_type: commands list
+ * @return 0 - operation is successful, 1 - operation is failed
  */
 static uint8_t BT121_GetCmdsList(FLASH_ERASE_TYPE *pflash_erase_type)
 {
@@ -297,11 +288,9 @@ static uint8_t BT121_GetCmdsList(FLASH_ERASE_TYPE *pflash_erase_type)
 
 /**
  * @brief Reconfigure UART in depend from boot of normal mode
- * @params
- * huart: UART HAL structure init handle
- * boot_mode: 0 - normal mode; 1 - boot mode
- * @return
- * 0 - operation is successful, 1 - operation is failed
+ * @param huart: UART HAL structure init handle
+ * @param boot_mode: 0 - normal mode; 1 - boot mode
+ * @return 0 - operation is successful, 1 - operation is failed
  */
 static uint8_t BT121_ReconfigureUART(UART_HandleTypeDef* huart, uint8_t boot_mode)
 {
@@ -342,8 +331,7 @@ static uint8_t BT121_ReconfigureUART(UART_HandleTypeDef* huart, uint8_t boot_mod
 
 /**
  * @brief Erase flash of BT121 module
- * @return
- * 0 - operation is successful, 1 - operation is failed,
+ * @return 0 - operation is successful, 1 - operation is failed,
  */
 static uint8_t BT121_FlashErase(void)
 {
@@ -383,11 +371,10 @@ static uint8_t BT121_FlashErase(void)
 
 /**
  * @brief Write data to flash memory of BT121 module
- * flash_addr - start address
- * data - data buffer pointer
- * size - data buffer size
- * @return
- * 0 - operation is successful, 1 - operation is failed
+ * @param flash_addr - start address
+ * @param data - data buffer pointer
+ * @param size - data buffer size
+ * @return 0 - operation is successful, 1 - operation is failed
  */
 static uint8_t BT121_FlashWrite(uint32_t flash_addr, uint8_t* data, uint16_t size)
 {
@@ -422,11 +409,10 @@ static uint8_t BT121_FlashWrite(uint32_t flash_addr, uint8_t* data, uint16_t siz
 
 /**
  * @brief Verify written data to flash memory of BT121 module
- * flash_addr - start address
- * check_data - data buffer for check pointer
- * size - data buffer size
- * @return
- * 0 - operation is successful, 1 - operation is failed
+ * @param flash_addr - start address
+ * @param check_data - data buffer for check pointer
+ * @param size - data buffer size
+ * @return 0 - operation is successful, 1 - operation is failed
  */
 static uint8_t BT121_FlashVerify(uint32_t flash_addr, uint8_t* check_data, uint16_t check_data_size)
 {
@@ -474,10 +460,10 @@ static uint8_t BT121_FlashVerify(uint32_t flash_addr, uint8_t* check_data, uint1
 
 /**
  * @brief Send input HID report via BT121
- * @params
- * report_id: id number of report
- * report_data: report data array
- * report_length: report data array length
+ * @param report_id: id number of report
+ * @param report_data: report data array
+ * @param report_length: report data array length
+ * @return None
  */
 static void BT121_SendInputReport(uint8_t report_id, uint8_t* report_data, uint8_t report_length)
 {
@@ -500,8 +486,7 @@ static void BT121_SendInputReport(uint8_t report_id, uint8_t* report_data, uint8
 
 /**
  * @brief Get HID endpoint connection state
- * @return
- * 0 - HID endpoint disconnected, 1 - HID endpoint disconnected
+ * @return 0 - HID endpoint disconnected, 1 - HID endpoint disconnected
  */
 static uint8_t BT121_IsHID_EndpointConnected(void)
 {
@@ -622,10 +607,10 @@ static void BT121_UpdateFirmware(void)
 
 /**
  * @brief Process output HID report from BT121
- * @params
- * report_id: id number of report
- * report_data: report data array
- * report_length: report data array length
+ * @param report_id: id number of report
+ * @param report_data: report data array
+ * @param report_length: report data array length
+ * @return None
  */
 static void BT121_ProcessOutputReport(uint8_t report_id, uint8_t* report_data, uint8_t report_length)
 {

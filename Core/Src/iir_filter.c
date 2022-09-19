@@ -20,6 +20,12 @@ z = 0.571472 + j 0.293599
 ***************************************************************/
 #include "iir_filter.h"
 
+/**
+ * @brief Apply IIR filter
+ * @param: filter_data - data structure, that contains filter coefficients and previous input and output samples
+ * @param: NewSample - new input data sample
+ * @return: Filtered output data sample
+ */
 int16_t doIirFilter(IIR_FilterData* filter_data, int16_t NewSample)
 {
     //shift the old samples

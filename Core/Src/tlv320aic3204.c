@@ -15,112 +15,21 @@ uint8_t test = 0;
 static void writeRegister(uint8_t addr, uint8_t value);
 static uint8_t readRegister(uint8_t addr);
 
-/**
- * @brief
- * Power control of audio part
- * @params
- * is_powered - 0 - power off, 1 - power on
- */
+// driver functions
 static void tlv320aic3204_PowerOnOff(uint8_t is_powered);
-
-/**
- * @brief
- * Make codec hardware reset function
- */
 static void tlv320aic3204_hardwareReset(void);
-
-/**
- * @brief
- * Codec I2S interface init function
- */
 static void tlv320aic3204_InterfaceInit(void);
-
-/**
- * @brief
- * Codec playback and recording init function
- */
 static void tlv320aic3204_CodecInit(void);
-
-/**
- * @brief
- * Codec de-initialization function
- */
 static void tlv320aic3204_DeInit(void);
-
-/**
- * @brief
- * Select codec outputs
- * @params
- * outputs - select output channel (headphones or loudspeakers)
- */
 static void tlv320aic3204_selectOutputs(OutputsType outputs);
-
-/**
- * @brief
- * Select codec input
- * @params
- * input - selected input channel (IN1 or IN3)
- */
 static void tlv320aic3204_selectInput(InputsType input);
-
-/**
- * @brief
- * Set codec's output mute state
- * @params
- * is_enable - (0 - not muted, 1 - muted)
- */
 static void tlv320aic3204_muteControl(uint8_t is_enabled);
-
-/**
- * @brief
- * Set codec's output driver gain
- * @params
- * gain - value from -6 dB to 29 dB
- */
 static void tlv320aic3204_setOutDriverGain(int8_t gain);
-
-/**
- * @brief
- * Set codec's DAC output volume
- * @params
- * gain - value from -63,5 dB to 24 dB in discrets with 0,5 dB
- */
 static void tlv320aic3204_setDigitalDACVolume(int8_t volume);
-
-/**
- * @brief
- * Set internal codec's LDO state
- * @params
- * is_enabled - LDO state (0 - power down, 1 - power up)
- */
 static void tlv320aic3204_LDO_PowerCtrl(uint8_t is_enabled);
-
-/**
- * @brief
- * DAC test function: beep 1 kHz 5 sec
- */
 //static void tlv320aic3204_BeepTest(void);
-
-/**
- * @brief
- * Get I2S DMA remaining size for transmit
- */
 static uint16_t tlv320aic3204_getOutRemainingDataSize(void);
-
-/**
- * @brief
- * Get I2S DMA remaining size for receive
- */
 static uint16_t tlv320aic3204_getInRemainingDataSize(void);
-
-/**
- * @brief
- * Start data transfer with codec via I2S DMA full-duplex interface
- * @params
- * tx_data - transmit data buffer
- * rx_data - receive data buffer
- * size - data buffers length
- */
 static void tlv320aic3204_StartDataTransfer(uint16_t* tx_data, uint16_t* rx_data, uint16_t size);
 
 AudioCodecDrv tlv320aic3204_driver =
@@ -145,6 +54,11 @@ OutputsType currentOutputs = LOUDSPEAKERS;
 InputsType currentInput = MIC1;
 uint8_t interface_dir = 0; // output
 
+/**
+ * @brief Write codec's register
+ * @param: addr - register address
+ * @param: value - register data
+ */
 static void writeRegister(uint8_t addr, uint8_t value)
 {
 	uint8_t data[2] = {0};
@@ -154,6 +68,11 @@ static void writeRegister(uint8_t addr, uint8_t value)
 	HAL_I2C_Master_Transmit(&hi2c2, 0x30, data, 2, 1000);
 }
 
+/**
+ * @brief Read codec's register
+ * @param: addr - register address
+ * @return: register data
+ */
 static uint8_t readRegister(uint8_t addr)
 {
 	uint8_t txData = 0;
@@ -166,6 +85,10 @@ static uint8_t readRegister(uint8_t addr)
 	return rxData;
 }
 
+/**
+ * @brief Power control of audio part
+ * @param is_powered - 0 - power off, 1 - power on
+ */
 static void tlv320aic3204_PowerOnOff(uint8_t is_powered)
 {
 	if(is_powered)
@@ -178,10 +101,12 @@ static void tlv320aic3204_PowerOnOff(uint8_t is_powered)
 	}
 }
 
+/** @brief Make codec hardware reset function
+ */
 static void tlv320aic3204_hardwareReset(void)
 {
 	HAL_Delay(2);
-//	make hardware reset (pin PB10)
+//	make hardware reset
 	CODEC_RST_GPIO_Port->BSRR = CODEC_RST_Pin<<16;
 	HAL_Delay(1);
 	CODEC_RST_GPIO_Port->BSRR = CODEC_RST_Pin;
@@ -190,6 +115,9 @@ static void tlv320aic3204_hardwareReset(void)
 	HAL_Delay(2);
 }
 
+/**
+ * @brief Codec I2S interface init function
+ */
 static void tlv320aic3204_InterfaceInit(void)
 {
 // codec control interface init
@@ -234,6 +162,9 @@ static void tlv320aic3204_InterfaceInit(void)
 	  HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
 }
 
+/**
+ * @brief Codec playback and recording init function
+ */
 static void tlv320aic3204_CodecInit(void)
 {
 // codec DAC init
@@ -339,6 +270,9 @@ static void tlv320aic3204_CodecInit(void)
 	writeRegister(0x52, 0x00);
 }
 
+/**
+ * @brief Codec de-initialization function
+ */
 static void tlv320aic3204_DeInit(void)
 {
 	tlv320aic3204_muteControl(1); // mute channels
@@ -360,6 +294,10 @@ static void tlv320aic3204_DeInit(void)
 	HAL_NVIC_DisableIRQ(DMA1_Stream4_IRQn);
 }
 
+/**
+ * @brief Select codec outputs
+ * @param: outputs - select output channel (headphones or loudspeakers)
+ */
 static void tlv320aic3204_selectOutputs(OutputsType outputs)
 {
 	if(currentOutputs != outputs)
@@ -406,6 +344,10 @@ static void tlv320aic3204_selectOutputs(OutputsType outputs)
 	}
 }
 
+/**
+ * @brief Select codec input
+ * @param: input - selected input channel (IN1 or IN3)
+ */
 static void tlv320aic3204_selectInput(InputsType input)
 {
 	uint8_t leftMic_PGA_VolCtrl = 0, rightMicPGA_VolCtrl = 0;
@@ -447,6 +389,10 @@ static void tlv320aic3204_selectInput(InputsType input)
 	}
 }
 
+/**
+ * @brief Set codec's output mute state
+ * @param: is_enable - (0 - not muted, 1 - muted)
+ */
 static void tlv320aic3204_muteControl(uint8_t is_enabled)
 {
 	uint8_t reg_value = 0;
@@ -492,6 +438,10 @@ static void tlv320aic3204_muteControl(uint8_t is_enabled)
 	}
 }
 
+/**
+ * @brief Set codec's output driver gain
+ * @param: gain - value from -6 dB to 29 dB
+ */
 static void tlv320aic3204_setOutDriverGain(int8_t gain)
 {
 	uint8_t reg_value = 0;
@@ -529,6 +479,10 @@ static void tlv320aic3204_setOutDriverGain(int8_t gain)
 	}
 }
 
+/**
+ * @brief Set codec's DAC output volume
+ * @param: gain - value from -63,5 dB to 24 dB in discrets with 0,5 dB (from -127 to 48)
+ */
 static void tlv320aic3204_setDigitalDACVolume(int8_t volume)
 {
 	// Select Page 0
@@ -543,6 +497,10 @@ static void tlv320aic3204_setDigitalDACVolume(int8_t volume)
 	writeRegister(0x42, volume);
 }
 
+/**
+ * @brief Set internal codec's LDO state
+ * @param: is_enabled - LDO state (0 - power down, 1 - power up)
+ */
 static void tlv320aic3204_LDO_PowerCtrl(uint8_t is_enabled)
 {
 	uint8_t reg_value = 0;
@@ -557,6 +515,9 @@ static void tlv320aic3204_LDO_PowerCtrl(uint8_t is_enabled)
 	writeRegister(0x02, reg_value|is_enabled);
 }
 
+/**
+ * @brief DAC test function: beep 1 kHz 5 sec
+ */
 //static void tlv320aic3204_BeepTest(void)
 //{
 //	uint32_t sampleLength = 0x3A980; // sample duration 5 sec
@@ -578,16 +539,30 @@ static void tlv320aic3204_LDO_PowerCtrl(uint8_t is_enabled)
 //	writeRegister(0x47, 0x86);
 //}
 
+/**
+ * @brief Get I2S DMA remaining size for transmit
+ * @return: remaining data size of DMA TX channel
+ */
 static uint16_t tlv320aic3204_getOutRemainingDataSize(void)
 {
 	return (uint16_t)(__HAL_DMA_GET_COUNTER(hi2s2.hdmatx) & 0xFFFF);
 }
 
+/**
+ * @brief Get I2S DMA remaining size for receive
+ * @return: remaining data size of DMA RX channel
+ */
 static uint16_t tlv320aic3204_getInRemainingDataSize()
 {
 	return (uint16_t)(__HAL_DMA_GET_COUNTER(hi2s2.hdmarx) & 0xFFFF);
 }
 
+/**
+ * @brief Start data transfer with codec via I2S DMA full-duplex interface
+ * @param: tx_data - transmit data buffer
+ * @param: rx_data - receive data buffer
+ * @param: size - data buffers length
+ */
 static void tlv320aic3204_StartDataTransfer(uint16_t* tx_data, uint16_t* rx_data, uint16_t size)
 {
 	HAL_I2SEx_TransmitReceive_DMA(&hi2s2, tx_data, rx_data, size);

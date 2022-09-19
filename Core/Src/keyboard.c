@@ -57,6 +57,11 @@ uint16_t LEDs_fb[LEDS_COUNT+2][24] = {0}; // LEDs data framebuffer
 uint16_t adcSamples[5] = {0}; // IN6 - J1_AV; IN7 - J1_AH; IN12 - HP_DET; IN14 - J2_AV; IN15 - J2_AH
 uint16_t hp_detection_level = 4095;
 
+/**
+ * @brief Keyboard initialization
+ * @param: None
+ * @return: None
+ */
 void initKeyboardState(void)
 {
 	// read joysticks calibration data from flash
@@ -66,6 +71,12 @@ void initKeyboardState(void)
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcSamples, 5);
 }
 
+/**
+ * @brief Set front RGB LED color and light impulse length
+ * @param: pulse_length - light impulse length
+ * @param: grb_color - 24-bit color in GRB-format
+ * @return: None
+ */
 static void setFrontLedColor(uint16_t pulse_length, uint32_t grb_color)
 {
 	memset(LEDs_fb, 0, sizeof(LEDs_fb));
@@ -104,12 +115,22 @@ static void setFrontLedColor(uint16_t pulse_length, uint32_t grb_color)
 	}
 }
 
+/**
+ * @brief Set keyboard state LED color
+ * @param: color - LED color (none, red, green, yellow)
+ * @return: None
+ */
 static void setStateLedColor(StateLedColors color)
 {
 	GPIOC->ODR &= 0xBFFF; // reset LED color
 	GPIOC->ODR |= (color<<13);
 }
 
+/**
+ * @brief Scan keyboard's controls state
+ * @param: None
+ * @return: None
+ */
 static uint8_t scanKeyboard(void)
 {
 	uint8_t current_kb_state = (GPIOA->IDR & 0x3F);
@@ -252,6 +273,11 @@ static uint8_t scanKeyboard(void)
 	return needToSendReport;
 }
 
+/**
+ * @brief Start timer for measuring delay between light/sound stimulus start and button press
+ * @param: None
+ * @return: None
+ */
 static void StartTimer(void)
 {
 	if(TIM7->CR1 & TIM_CR1_CEN)
@@ -264,11 +290,22 @@ static void StartTimer(void)
 	}
 }
 
+/**
+ * @brief Joysticks calibration mode control
+ * @param: is_enabled: 0 - calibration mode disabled, 1 - calibration mode enabled
+ * @return: None
+ */
 static void joysticksCalibrationModeControl(uint8_t is_enabled)
 {
 	isJoysticksCalibrationModeEnabled = is_enabled;
 }
 
+/**
+ * @brief Save joysticks calibration data in flash memory
+ * @param: joystickLeftCD - calibration data for left joystick (6 bytes)
+ * @param: joystickRightCD - calibration data for right joystick (6 bytes)
+ * @return: None
+ */
 static void saveJoysticksCalibrationData(uint16_t* joystickLeftCD, uint16_t* joystickRightCD)
 {
 	// fill joystick left calibration data struct
@@ -305,6 +342,12 @@ static void saveJoysticksCalibrationData(uint16_t* joystickLeftCD, uint16_t* joy
 	eeprom_drv->Write(JOYSTICK_RIGHT_V_AXIS_ZERO_KEY, joystickRightCD[5]);
 }
 
+/**
+ * @brief Read joysticks calibration data from flash memory
+ * @param: jd_left - data structure for left joystick
+ * @param: jd_right - data structure for right joystick
+ * @return: None
+ */
 static void readJoysticksCalibrationData(JoystickData* jd_left, JoystickData* jd_right)
 {
 	uint16_t temp = 0;
@@ -363,6 +406,13 @@ static void readJoysticksCalibrationData(JoystickData* jd_left, JoystickData* jd
 	}
 }
 
+/**
+ * @brief Calculate joystick position coordinates
+ * @param: jd - joysticks data structure
+ * @param: x - joystick's X coordinate output (from -127 to +127)
+ * @param: y - joystick's Y coordinate output (from -127 to +127)
+ * @return: None
+ */
 static void calcJoystickCoords(JoystickData* jd, int8_t* x, int8_t* y)
 {
 	uint16_t h_value = 0, v_value = 0;
@@ -400,6 +450,11 @@ static void calcJoystickCoords(JoystickData* jd, int8_t* x, int8_t* y)
 	*y = (int8_t)yy;
 }
 
+/**
+ * @brief Check is joystick's position changed
+ * @param: jd - joysticks data
+ * @return: 0 - joystick's position wasn't change, 1 - joystick's position was changed
+ */
 static uint8_t isJoystickPositionChanged(JoystickData* jd)
 {
 	uint8_t res = 0;
@@ -420,7 +475,11 @@ static uint8_t isJoystickPositionChanged(JoystickData* jd)
 	return res;
 }
 
-// get analog channels data
+/**
+ * @brief ADC conversion end callback
+ * @param: hadc - ADC handle
+ * @return: None
+ */
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
 	UNUSED(hadc);

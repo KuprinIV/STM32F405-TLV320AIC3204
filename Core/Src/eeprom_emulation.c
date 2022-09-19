@@ -33,6 +33,11 @@ static EepromResult EEPROM_PageTransfer(PageIdx activePage, uint16_t varId, uint
 EepromDrv eeprom = {EEPROM_Init, EEPROM_Read, EEPROM_Write, EEPROM_ResetDfuSignature, EEPROM_GetSerialNumber, EEPROM_GetFwVersion};
 EepromDrv* eeprom_drv = &eeprom;
 
+/**
+ * @brief Init EEPROM emulation module
+ * @param: None
+ * @return: None
+ */
 EepromResult EEPROM_Init()
 {
   EepromResult res = EEPROM_OK;
@@ -80,7 +85,12 @@ EepromResult EEPROM_Init()
   return res;
 }
 
-/******************************************************************************/
+/**
+ * @brief Read value from emulated EEPROM
+ * @param: varId - EEPROM variable key (defined in "varIdList")
+ * @param: varValue - variable value read from emulated EEPROM
+ * @return: EEPROM operation result: OK or ERROR
+ */
 EepromResult EEPROM_Read(uint16_t varId, uint16_t *varValue)
 {
   EepromResult res = EEPROM_OK;
@@ -127,7 +137,12 @@ EepromResult EEPROM_Read(uint16_t varId, uint16_t *varValue)
   return res;
 }
 
-/******************************************************************************/
+/**
+ * @brief Write value into emulated EEPROM
+ * @param: varId - EEPROM variable key (defined in "varIdList")
+ * @param: varValue - variable value
+ * @return: EEPROM operation result: OK or ERROR
+ */
 EepromResult EEPROM_Write(uint16_t varId, uint16_t varValue)
 {
   EepromResult res = EEPROM_OK;
@@ -188,6 +203,11 @@ EepromResult EEPROM_Write(uint16_t varId, uint16_t varValue)
   return res;
 }
 
+/**
+ * @brief Reset DFU signature for starting DFU bootloader after system rest
+ * @param: None
+ * @return: EEPROM operation result: OK or ERROR
+ */
 static EepromResult EEPROM_ResetDfuSignature(void)
 {
 	EepromResult res = EEPROM_OK;
@@ -246,6 +266,12 @@ static EepromResult EEPROM_ResetDfuSignature(void)
 	return res;
 }
 
+/**
+ * @brief Read device serial number
+ * @param: sn_buf - data buffer for serial number
+ * @param: length - data buffer length
+ * @return: EEPROM operation result: OK or ERROR
+ */
 static EepromResult EEPROM_GetSerialNumber(uint8_t* sn_buf, uint8_t length)
 {
 	for(uint8_t i = 0; i < length; i++)
@@ -256,6 +282,12 @@ static EepromResult EEPROM_GetSerialNumber(uint8_t* sn_buf, uint8_t length)
 	return EEPROM_OK;
 }
 
+/**
+ * @brief Read firmware version
+ * @param: fw_ver_buf - data buffer for firmware version
+ * @param: length - data buffer length
+ * @return: EEPROM operation result: OK or ERROR
+ */
 static EepromResult EEPROM_GetFwVersion(uint8_t* fw_ver_buf, uint8_t length)
 {
 	for(uint8_t i = 0; i < length; i++)
@@ -268,6 +300,13 @@ static EepromResult EEPROM_GetFwVersion(uint8_t* fw_ver_buf, uint8_t length)
 	return EEPROM_OK;
 }
 
+/**
+ * @brief Inner function for write data into emulated EEPROM
+ * @param: address - address in flash memory, where data will be write
+ * @param: varId - EEPROM variable key (defined in "varIdList")
+ * @param: varValue - variable value
+ * @return: EEPROM operation result: OK or ERROR
+ */
 EepromResult EEPROM_WriteData(uint32_t address, uint16_t varId, uint16_t varValue)
 {
   EepromResult res = EEPROM_OK;
@@ -286,7 +325,13 @@ EepromResult EEPROM_WriteData(uint32_t address, uint16_t varId, uint16_t varValu
   return res;
 }
 
-/******************************************************************************/
+/**
+ * @brief Inner function for copying actual variables data into next flash memory page
+ * @param: activePage - active flash memory page index
+ * @param: varId - EEPROM variable key (defined in "varIdList")
+ * @param: varValue - variable value
+ * @return: EEPROM operation result: OK or ERROR
+ */
 static EepromResult EEPROM_PageTransfer(PageIdx activePage, uint16_t varId, uint16_t varValue)
 {
   EepromResult res = EEPROM_OK;
@@ -356,7 +401,12 @@ static EepromResult EEPROM_PageTransfer(PageIdx activePage, uint16_t varId, uint
   return res;
 }
 
-/******************************************************************************/
+/**
+ * @brief Inner function for copying one flash page data into other page
+ * @param: oldPage - source flash memory page index
+ * @param: newPage - destination flash memory page index
+ * @return: EEPROM operation result: OK or ERROR
+ */
 static EepromResult EEPROM_CopyPageData(PageIdx oldPage, PageIdx newPage)
 {
   EepromResult res = EEPROM_OK;
@@ -393,17 +443,21 @@ static EepromResult EEPROM_CopyPageData(PageIdx oldPage, PageIdx newPage)
   return res;
 }
 
-
-
-/******************************************************************************/
+/**
+ * @brief Read data from flash memory
+ * @param: address - target memory address
+ * @return: taget memory address data
+ */
 static uint32_t FLASH_Read(uint32_t address)
 {
   return (*(__IO uint32_t*)address);
 }
 
-
-
-/******************************************************************************/
+/**
+ * @brief Inner function for reading flash memory page state
+ * @param: idx - flash memory page index
+ * @return: page state
+ */
 static PageState EEPROM_ReadPageState(PageIdx idx)
 {
   PageState pageState;
@@ -411,9 +465,12 @@ static PageState EEPROM_ReadPageState(PageIdx idx)
   return pageState;
 }
 
-
-
-/******************************************************************************/
+/**
+ * @brief Inner function for setting flash memory page state
+ * @param: idx - flash memory page index
+ * @param: state - required page state
+ * @return: EEPROM operation result: OK or ERROR
+ */
 static EepromResult EEPROM_SetPageState(PageIdx idx, PageState state)
 {
   EepromResult res = EEPROM_OK;
@@ -431,9 +488,11 @@ static EepromResult EEPROM_SetPageState(PageIdx idx, PageState state)
   return res;
 }
 
-
-
-/******************************************************************************/
+/**
+ * @brief Inner function for clear flash memory page
+ * @param: idx - flash memory page index
+ * @return: EEPROM operation result: OK or ERROR
+ */
 static EepromResult EEPROM_ClearPage(PageIdx idx)
 {
   EepromResult res = EEPROM_OK;
@@ -476,9 +535,11 @@ static EepromResult EEPROM_ClearPage(PageIdx idx)
   return res;
 }
 
-
-
-/******************************************************************************/
+/**
+ * @brief Emulated EEPROM format
+ * @param: None
+ * @return: EEPROM operation result: OK or ERROR
+ */
 static EepromResult EEPROM_Format()
 {
   EepromResult res = EEPROM_OK;
@@ -496,9 +557,11 @@ static EepromResult EEPROM_Format()
   return res;
 }
 
-
-
-/******************************************************************************/
+/**
+ * @brief Get active flash memory page index
+ * @param: idx - active flash memory page index value
+ * @return: EEPROM operation result: OK or ERROR
+ */
 static EepromResult EEPROM_GetActivePageIdx(PageIdx *idx)
 {
   EepromResult res = EEPROM_OK;
