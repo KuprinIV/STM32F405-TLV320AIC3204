@@ -8,12 +8,7 @@ I2S_HandleTypeDef hi2s2;
 DMA_HandleTypeDef hdma_i2s2_ext_rx;
 DMA_HandleTypeDef hdma_spi2_tx;
 
-I2C_HandleTypeDef hi2c2;
-
-uint8_t test = 0;
-
-static void writeRegister(uint8_t addr, uint8_t value);
-static uint8_t readRegister(uint8_t addr);
+extern I2C_HandleTypeDef hi2c2;
 
 // driver functions
 static void tlv320aic3204_PowerOnOff(uint8_t is_powered);
@@ -27,10 +22,14 @@ static void tlv320aic3204_muteControl(uint8_t is_enabled);
 static void tlv320aic3204_setOutDriverGain(int8_t gain);
 static void tlv320aic3204_setDigitalDACVolume(int8_t volume);
 static void tlv320aic3204_LDO_PowerCtrl(uint8_t is_enabled);
-//static void tlv320aic3204_BeepTest(void);
 static uint16_t tlv320aic3204_getOutRemainingDataSize(void);
 static uint16_t tlv320aic3204_getInRemainingDataSize(void);
 static void tlv320aic3204_StartDataTransfer(uint16_t* tx_data, uint16_t* rx_data, uint16_t size);
+
+// inner functions
+static void tlv3204aic3204_writeRegister(uint8_t addr, uint8_t value);
+static uint8_t tlv3204aic3204_readRegister(uint8_t addr);
+//static void tlv320aic3204_BeepTest(void);
 
 AudioCodecDrv tlv320aic3204_driver =
 {
@@ -59,13 +58,13 @@ uint8_t interface_dir = 0; // output
  * @param: addr - register address
  * @param: value - register data
  */
-static void writeRegister(uint8_t addr, uint8_t value)
+static void tlv3204aic3204_writeRegister(uint8_t addr, uint8_t value)
 {
 	uint8_t data[2] = {0};
 	data[0] = addr;
 	data[1] = value;
 
-	HAL_I2C_Master_Transmit(&hi2c2, 0x30, data, 2, 1000);
+	HAL_I2C_Master_Transmit(&hi2c2, CODEC_SLAVE_ADDRESS, data, 2, 1000);
 }
 
 /**
@@ -73,15 +72,15 @@ static void writeRegister(uint8_t addr, uint8_t value)
  * @param: addr - register address
  * @return: register data
  */
-static uint8_t readRegister(uint8_t addr)
+static uint8_t tlv3204aic3204_readRegister(uint8_t addr)
 {
 	uint8_t txData = 0;
 	uint8_t rxData = 0;
 
 	txData = addr;
 
-	HAL_I2C_Master_Transmit(&hi2c2, 0x30, &txData, 1, 1000); // send register address
-	HAL_I2C_Master_Receive(&hi2c2, 0x30, &rxData, 1, 1000); // receive register value
+	HAL_I2C_Master_Transmit(&hi2c2, CODEC_SLAVE_ADDRESS, &txData, 1, 1000); // send register address
+	HAL_I2C_Master_Receive(&hi2c2, CODEC_SLAVE_ADDRESS, &rxData, 1, 1000); // receive register value
 	return rxData;
 }
 
@@ -120,22 +119,6 @@ static void tlv320aic3204_hardwareReset(void)
  */
 static void tlv320aic3204_InterfaceInit(void)
 {
-// codec control interface init
-	  /* I2C2 parameter configuration*/
-	  hi2c2.Instance = I2C2;
-	  hi2c2.Init.ClockSpeed = 400000;
-	  hi2c2.Init.DutyCycle = I2C_DUTYCYCLE_16_9;
-	  hi2c2.Init.OwnAddress1 = 0;
-	  hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-	  hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-	  hi2c2.Init.OwnAddress2 = 0;
-	  hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-	  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-	  if (HAL_I2C_Init(&hi2c2) != HAL_OK)
-	  {
-	    Error_Handler();
-	  }
-	
 	/* DMA controller clock enable */
 	  __HAL_RCC_DMA1_CLK_ENABLE();
 // codec I2S interface init
@@ -169,109 +152,109 @@ static void tlv320aic3204_CodecInit(void)
 {
 // codec DAC init
 	//select Page 0
-	writeRegister(PAGE_SELECT_REGISTER, 0);
+	tlv3204aic3204_writeRegister(PAGE_SELECT_REGISTER, 0);
 	// make software reset
-	writeRegister(0x01, 0x01);
+	tlv3204aic3204_writeRegister(0x01, 0x01);
 	// Power up the NDAC divider with value 1
-	writeRegister(0x0B, 0x81);
+	tlv3204aic3204_writeRegister(0x0B, 0x81);
 	// Power up the MDAC divider with value 2
-	writeRegister(0x0C, 0x82);
+	tlv3204aic3204_writeRegister(0x0C, 0x82);
 	// Program the OSR of DAC to 128
-	writeRegister(0x0D, 0x00);
-	writeRegister(0x0E, 0x80);
+	tlv3204aic3204_writeRegister(0x0D, 0x00);
+	tlv3204aic3204_writeRegister(0x0E, 0x80);
 	// Set the word length of Audio Interface to 16bits PTM_P4
-	writeRegister(0x1B, 0x00);
+	tlv3204aic3204_writeRegister(0x1B, 0x00);
 	// Set the DAC Mode to PRB_P8
-	writeRegister(0x3C, 0x08);
+	tlv3204aic3204_writeRegister(0x3C, 0x08);
 	// Select Page 1
-	writeRegister(PAGE_SELECT_REGISTER, 0x01);
+	tlv3204aic3204_writeRegister(PAGE_SELECT_REGISTER, 0x01);
 	// Disable Internal Crude AVdd in presence of external AVdd supply or before
 	//powering up internal AVdd LDO
-	writeRegister(0x01, 0x08);
+	tlv3204aic3204_writeRegister(0x01, 0x08);
 	// Enable Master Analog Power Control
-	writeRegister(0x02, 0x01);
+	tlv3204aic3204_writeRegister(0x02, 0x01);
 	// Set the REF charging time to 40ms
-	writeRegister(0x7B, 0x01);
+	tlv3204aic3204_writeRegister(0x7B, 0x01);
 	// HP soft stepping settings for optimal pop performance at power up
 	// Rpop used is 6k with N = 6 and soft step = 20usec. This should work with 47uF coupling
 	// capacitor. Can try N=5,6 or 7 time constants as well. Trade-off delay vs “pop” sound.
-	writeRegister(0x14, 0x25);
+	tlv3204aic3204_writeRegister(0x14, 0x25);
 	// Set the Input Common Mode to 0.9V and Output Common Mode for Headphone to
 	// Input Common Mode
-	writeRegister(0x0A, 0x00);
+	tlv3204aic3204_writeRegister(0x0A, 0x00);
 	// Route Left DAC to LOL
-	writeRegister(0x0E, 0x08);
+	tlv3204aic3204_writeRegister(0x0E, 0x08);
 	// Route Right DAC to LOR
-	writeRegister(0x0F, 0x08);
+	tlv3204aic3204_writeRegister(0x0F, 0x08);
 	// Set the DAC PTM mode to PTM_P3/4
-	writeRegister(0x03, 0x00);
-	writeRegister(0x04, 0x00);
+	tlv3204aic3204_writeRegister(0x03, 0x00);
+	tlv3204aic3204_writeRegister(0x04, 0x00);
 	// Set the HPL gain to 0dB
-	writeRegister(0x10, 0x00);
+	tlv3204aic3204_writeRegister(0x10, 0x00);
 	// Set the HPR gain to 0dB
-	writeRegister(0x11, 0x00);
+	tlv3204aic3204_writeRegister(0x11, 0x00);
 	// Set the LOL gain to 0dB
-	writeRegister(0x12, 0x00);
+	tlv3204aic3204_writeRegister(0x12, 0x00);
 	// Set the LOR gain to 0dB
-	writeRegister(0x13, 0x00);
+	tlv3204aic3204_writeRegister(0x13, 0x00);
 	// Power up LOL and LOR drivers
-	writeRegister(0x09, 0x0C);
+	tlv3204aic3204_writeRegister(0x09, 0x0C);
 	// Wait for 2.5 sec for soft stepping to take effect
 	// Else read Page 1, Register 63d, D(7:6). When = “11” soft-stepping is complete
 	// Select Page 0
-	writeRegister(PAGE_SELECT_REGISTER, 0);
+	tlv3204aic3204_writeRegister(PAGE_SELECT_REGISTER, 0);
 	// Power up the Left and Right DAC Channels with route the Left Audio digital data to
 	// Left Channel DAC and Right Audio digital data to Right Channel DAC, soft-step volume change enable
-	writeRegister(0x3F, 0xD5);
-	test = readRegister(0x3F);
+	tlv3204aic3204_writeRegister(0x3F, 0xD5);
 	// Unmute the DAC digital volume control
-	writeRegister(0x40, 0x00);
+	tlv3204aic3204_writeRegister(0x40, 0x00);
 	// enable out amplifier for loudspeakers
 	LS_EN_GPIO_Port->ODR |= LS_EN_Pin;
 
 //codec ADC init
 	// Initialize to Page 0
-	writeRegister(PAGE_SELECT_REGISTER, 0);
+	tlv3204aic3204_writeRegister(PAGE_SELECT_REGISTER, 0);
 	// Power up NADC divider with value 1
-	writeRegister(0x12, 0x81);
+	tlv3204aic3204_writeRegister(0x12, 0x81);
 	// Power up MADC divider with value 2
-	writeRegister(0x13, 0x82);
+	tlv3204aic3204_writeRegister(0x13, 0x82);
 	// Program OSR for ADC to 128
-	writeRegister(0x14, 0x80);
+	tlv3204aic3204_writeRegister(0x14, 0x80);
 	// Select ADC PRB_R1
-	writeRegister(0x3B, 0x01);
+	tlv3204aic3204_writeRegister(0x3B, 0x01);
 	// Select Page 1
-	writeRegister(PAGE_SELECT_REGISTER, 1);
+	tlv3204aic3204_writeRegister(PAGE_SELECT_REGISTER, 1);
 	// Select ADC PTM_R4
-	writeRegister(0x3D, 0x00);
+	tlv3204aic3204_writeRegister(0x3D, 0x00);
 	// Set MicPGA startup delay to 3.1ms
-	writeRegister(0x47, 0x32);
+	tlv3204aic3204_writeRegister(0x47, 0x32);
 	// Route IN1L to LEFT_P with 20K input impedance
-	writeRegister(0x34, 0x80);
+	tlv3204aic3204_writeRegister(0x34, 0x80);
 	// Route Common Mode to LEFT_M with impedance of 20K
-	writeRegister(0x36, 0x80);
+	tlv3204aic3204_writeRegister(0x36, 0x80);
 	// Route IN1R to RIGHT_P with input impedance of 20K
-	writeRegister(0x37, 0x80);
+	tlv3204aic3204_writeRegister(0x37, 0x80);
 	// Route Common Mode to RIGHT_M with impedance of 20K
-	writeRegister(0x39, 0x80);
+	tlv3204aic3204_writeRegister(0x39, 0x80);
 	// Unmute Left MICPGA, Gain selection of 6dB to make channel gain 0dB
 	// Register of 6dB with input impedance of 20K => Channel Gain of 0dB
-	writeRegister(0x3B, 0x0C);
+	tlv3204aic3204_writeRegister(0x3B, 0x0C);
 	// Unmute Right MICPGA, Gain selection of 6dB to make channel gain 0dB
 	// Register of 6dB with input impedance of 20K => Channel Gain of 0dB
-	writeRegister(0x3C, 0x0C);
+	tlv3204aic3204_writeRegister(0x3C, 0x0C);
 	// Set MICBIAS voltage 1.25 V
-	writeRegister(0x33, 0x40);
+	tlv3204aic3204_writeRegister(0x33, 0x40);
 	// Select Page 0
-	writeRegister(PAGE_SELECT_REGISTER, 0);
+	tlv3204aic3204_writeRegister(PAGE_SELECT_REGISTER, 0);
 	// Power up Left and Right ADC Channels
-	writeRegister(0x51, 0xC0);
+	tlv3204aic3204_writeRegister(0x51, 0xC0);
 	// Unmute Left and Right ADC Digital Volume Control.
-	writeRegister(0x52, 0x00);
+	tlv3204aic3204_writeRegister(0x52, 0x00);
 }
 
 /**
- * @brief Codec de-initialization function
+ * @brief
+ * Codec de-initialization function
  */
 static void tlv320aic3204_DeInit(void)
 {
@@ -282,12 +265,6 @@ static void tlv320aic3204_DeInit(void)
 	{
 		 Error_Handler();
 	}
-	// de-init SPI1 codec control interface
-	if (HAL_I2C_DeInit(&hi2c2) != HAL_OK)
-    {
-	  Error_Handler();
-    }
-	
 	// I2S2 RX DMA interrupt
 	HAL_NVIC_DisableIRQ(DMA1_Stream3_IRQn);
 	// I2S2 TX DMA interrupt
@@ -307,34 +284,34 @@ static void tlv320aic3204_selectOutputs(OutputsType outputs)
 		// change current outputs
 		currentOutputs = outputs;
 		// Select Page 1
-		writeRegister(PAGE_SELECT_REGISTER, 0x01);
+		tlv3204aic3204_writeRegister(PAGE_SELECT_REGISTER, 0x01);
 		switch(outputs)
 		{
 			case HEADPHONES:
 			default:
 				// Route Left DAC to HPL
-				writeRegister(0x0C, 0x08);
+				tlv3204aic3204_writeRegister(0x0C, 0x08);
 				// Route Right DAC to HPR
-				writeRegister(0x0D, 0x08);
+				tlv3204aic3204_writeRegister(0x0D, 0x08);
 				// Unroute Left DAC from LOL
-				writeRegister(0x0E, 0x00);
+				tlv3204aic3204_writeRegister(0x0E, 0x00);
 				// Unroute Right DAC from LOR
-				writeRegister(0x0F, 0x00);
+				tlv3204aic3204_writeRegister(0x0F, 0x00);
 				// Power up HPL and HPR drivers
-				writeRegister(0x09, 0x30);
+				tlv3204aic3204_writeRegister(0x09, 0x30);
 				break;
 
 			case LOUDSPEAKERS:
 				// Route Left DAC to LOL
-				writeRegister(0x0E, 0x08);
+				tlv3204aic3204_writeRegister(0x0E, 0x08);
 				// Route Right DAC to LOR
-				writeRegister(0x0F, 0x08);
+				tlv3204aic3204_writeRegister(0x0F, 0x08);
 				// Unroute Left DAC from HPL
-				writeRegister(0x0C, 0x00);
+				tlv3204aic3204_writeRegister(0x0C, 0x00);
 				// Unroute Left DAC from HPR
-				writeRegister(0x0D, 0x00);
+				tlv3204aic3204_writeRegister(0x0D, 0x00);
 				// Power up LOL and LOR drivers
-				writeRegister(0x09, 0x0C);
+				tlv3204aic3204_writeRegister(0x09, 0x0C);
 				break;
 		}
 		// disable outputs mute
@@ -356,36 +333,36 @@ static void tlv320aic3204_selectInput(InputsType input)
 		// change current outputs
 		currentInput = input;
 		// Select Page 1
-		writeRegister(PAGE_SELECT_REGISTER, 0x01);
+		tlv3204aic3204_writeRegister(PAGE_SELECT_REGISTER, 0x01);
 		// read left and right MicPGA volume control registers
-		leftMic_PGA_VolCtrl = readRegister(0x3B);
-		rightMicPGA_VolCtrl = readRegister(0x3C);
+		leftMic_PGA_VolCtrl = tlv3204aic3204_readRegister(0x3B);
+		rightMicPGA_VolCtrl = tlv3204aic3204_readRegister(0x3C);
 		// enable inputs mute
-		writeRegister(0x3B, leftMic_PGA_VolCtrl|0x80);
-		writeRegister(0x3C, rightMicPGA_VolCtrl|0x80);
+		tlv3204aic3204_writeRegister(0x3B, leftMic_PGA_VolCtrl|0x80);
+		tlv3204aic3204_writeRegister(0x3C, rightMicPGA_VolCtrl|0x80);
 		
 		switch(input)
 		{
 			case MIC1:
 			default:
 				// Route IN1L to LEFT_P with 20K input impedance
-				writeRegister(0x34, 0x80);
+				tlv3204aic3204_writeRegister(0x34, 0x80);
 				// Route IN1R to RIGHT_P with input impedance of 20K
-				writeRegister(0x37, 0x80);
+				tlv3204aic3204_writeRegister(0x37, 0x80);
 				break;
 
 			case MIC3:
 				// Route IN3L to LEFT_P with 20K input impedance
-				writeRegister(0x34, 0x08);
+				tlv3204aic3204_writeRegister(0x34, 0x08);
 				// Route IN3L to common mode
-				writeRegister(0x3A, 0x08);
+				tlv3204aic3204_writeRegister(0x3A, 0x08);
 				// Route IN3R to RIGHT_P with input impedance of 20K
-				writeRegister(0x37, 0x08);
+				tlv3204aic3204_writeRegister(0x37, 0x08);
 				break;
 		}
 		// disable inputs mute
-		writeRegister(0x3B, leftMic_PGA_VolCtrl&0x7F);
-		writeRegister(0x3C, rightMicPGA_VolCtrl&0x7F);
+		tlv3204aic3204_writeRegister(0x3B, leftMic_PGA_VolCtrl&0x7F);
+		tlv3204aic3204_writeRegister(0x3C, rightMicPGA_VolCtrl&0x7F);
 	}
 }
 
@@ -400,31 +377,31 @@ static void tlv320aic3204_muteControl(uint8_t is_enabled)
 	// check params
 	if(is_enabled > 1) return;
 	// Select Page 1
-	writeRegister(PAGE_SELECT_REGISTER, 0x01);
+	tlv3204aic3204_writeRegister(PAGE_SELECT_REGISTER, 0x01);
 
 	switch(currentOutputs)
 	{
 		case HEADPHONES:
 		default:
 			// mute HPL control
-			reg_value = readRegister(0x10) & 0xBF; // reset mute bit
+			reg_value = tlv3204aic3204_readRegister(0x10) & 0xBF; // reset mute bit
 			reg_value |= (is_enabled << 6); // set value for mute bit
-			writeRegister(0x10, reg_value);
+			tlv3204aic3204_writeRegister(0x10, reg_value);
 			// mute HPR control
-			reg_value = readRegister(0x11) & 0xBF; // reset mute bit
+			reg_value = tlv3204aic3204_readRegister(0x11) & 0xBF; // reset mute bit
 			reg_value |= (is_enabled << 6); // set value for mute bit
-			writeRegister(0x11, reg_value);
+			tlv3204aic3204_writeRegister(0x11, reg_value);
 			break;
 
 		case LOUDSPEAKERS:
 			// mute LOL control
-			reg_value = readRegister(0x12) & 0xBF; // reset mute bit
+			reg_value = tlv3204aic3204_readRegister(0x12) & 0xBF; // reset mute bit
 			reg_value |= (is_enabled << 6); // set value for mute bit
-			writeRegister(0x12, reg_value);
+			tlv3204aic3204_writeRegister(0x12, reg_value);
 			// mute LOR control
-			reg_value = readRegister(0x13) & 0xBF; // reset mute bit
+			reg_value = tlv3204aic3204_readRegister(0x13) & 0xBF; // reset mute bit
 			reg_value |= (is_enabled << 6); // set value for mute bit
-			writeRegister(0x13, reg_value);
+			tlv3204aic3204_writeRegister(0x13, reg_value);
 
 			if(is_enabled)
 			{
@@ -446,7 +423,7 @@ static void tlv320aic3204_setOutDriverGain(int8_t gain)
 {
 	uint8_t reg_value = 0;
 	// Select Page 1
-	writeRegister(PAGE_SELECT_REGISTER, 0x01);
+	tlv3204aic3204_writeRegister(PAGE_SELECT_REGISTER, 0x01);
 
 	//check gain limits
 	if(gain < -6) gain = -6;
@@ -457,24 +434,24 @@ static void tlv320aic3204_setOutDriverGain(int8_t gain)
 		case HEADPHONES:
 		default:
 			// gain HPL control
-			reg_value = readRegister(0x10) & 0xC0; // reset gain bits
+			reg_value = tlv3204aic3204_readRegister(0x10) & 0xC0; // reset gain bits
 			reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
-			writeRegister(0x10, reg_value);
+			tlv3204aic3204_writeRegister(0x10, reg_value);
 			// gain HPR control
-			reg_value = readRegister(0x11) & 0xC0; // reset gain bits
+			reg_value = tlv3204aic3204_readRegister(0x11) & 0xC0; // reset gain bits
 			reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
-			writeRegister(0x11, reg_value);
+			tlv3204aic3204_writeRegister(0x11, reg_value);
 			break;
 
 		case LOUDSPEAKERS:
 			// gain LOL control
-			reg_value = readRegister(0x12) & 0xC0; //reset gain bits
+			reg_value = tlv3204aic3204_readRegister(0x12) & 0xC0; //reset gain bits
 			reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
-			writeRegister(0x12, reg_value);
+			tlv3204aic3204_writeRegister(0x12, reg_value);
 			// gain LOR control
-			reg_value = readRegister(0x13) & 0xC0; //reset gain bits
+			reg_value = tlv3204aic3204_readRegister(0x13) & 0xC0; //reset gain bits
 			reg_value |= (uint8_t)(gain & 0x3F); // set gain value bits
-			writeRegister(0x13, reg_value);
+			tlv3204aic3204_writeRegister(0x13, reg_value);
 			break;
 	}
 }
@@ -486,15 +463,15 @@ static void tlv320aic3204_setOutDriverGain(int8_t gain)
 static void tlv320aic3204_setDigitalDACVolume(int8_t volume)
 {
 	// Select Page 0
-	writeRegister(PAGE_SELECT_REGISTER, 0x00);
+	tlv3204aic3204_writeRegister(PAGE_SELECT_REGISTER, 0x00);
 
 	//check volume limits
 	if(volume > 48) volume = 48;
 	if(volume < -127) volume = -127;
 
 	// write DAC gain value for both channels
-	writeRegister(0x41, volume);
-	writeRegister(0x42, volume);
+	tlv3204aic3204_writeRegister(0x41, volume);
+	tlv3204aic3204_writeRegister(0x42, volume);
 }
 
 /**
@@ -508,11 +485,11 @@ static void tlv320aic3204_LDO_PowerCtrl(uint8_t is_enabled)
 	// check param
 	if(is_enabled > 1) return;
 	// Select Page 1
-	writeRegister(PAGE_SELECT_REGISTER, 0x01);
+	tlv3204aic3204_writeRegister(PAGE_SELECT_REGISTER, 0x01);
 	// read LDO control register
-	reg_value = readRegister(0x02) & 0xFE;
+	reg_value = tlv3204aic3204_readRegister(0x02) & 0xFE;
 	// write LDO power state
-	writeRegister(0x02, reg_value|is_enabled);
+	tlv3204aic3204_writeRegister(0x02, reg_value|is_enabled);
 }
 
 /**
@@ -523,20 +500,20 @@ static void tlv320aic3204_LDO_PowerCtrl(uint8_t is_enabled)
 //	uint32_t sampleLength = 0x3A980; // sample duration 5 sec
 //	uint16_t freq = 1000; // freq 1 kHz
 //	// Select Page 0
-//	writeRegister(PAGE_SELECT_REGISTER, 0x00);
+//	tlv3204aic3204_writeRegister(PAGE_SELECT_REGISTER, 0x00);
 //	// write sample duration
-//	writeRegister(0x49, (uint8_t)((sampleLength>>16) & 0xFF));
-//	writeRegister(0x4A, (uint8_t)((sampleLength>>8) & 0xFF));
-//	writeRegister(0x4B, (uint8_t)(sampleLength & 0xFF));
+//	tlv3204aic3204_writeRegister(0x49, (uint8_t)((sampleLength>>16) & 0xFF));
+//	tlv3204aic3204_writeRegister(0x4A, (uint8_t)((sampleLength>>8) & 0xFF));
+//	tlv3204aic3204_writeRegister(0x4B, (uint8_t)(sampleLength & 0xFF));
 //	// write sample frequency
-//	writeRegister(0x4C, (uint8_t)((freq>>8) & 0xFF));
-//	writeRegister(0x4D, (uint8_t)(freq & 0xFF));
+//	tlv3204aic3204_writeRegister(0x4C, (uint8_t)((freq>>8) & 0xFF));
+//	tlv3204aic3204_writeRegister(0x4D, (uint8_t)(freq & 0xFF));
 //
-//	writeRegister(0x4E, (uint8_t)((freq>>8) & 0xFF));
-//	writeRegister(0x4F, (uint8_t)(freq & 0xFF));
+//	tlv3204aic3204_writeRegister(0x4E, (uint8_t)((freq>>8) & 0xFF));
+//	tlv3204aic3204_writeRegister(0x4F, (uint8_t)(freq & 0xFF));
 //
 //	// enable beep generator and set volume -6 dB
-//	writeRegister(0x47, 0x86);
+//	tlv3204aic3204_writeRegister(0x47, 0x86);
 //}
 
 /**

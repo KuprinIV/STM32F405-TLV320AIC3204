@@ -488,8 +488,10 @@ uint8_t USBD_COMP_RegisterInterface (USBD_HandleTypeDef   *pdev,
 
 uint8_t USBD_COMP_HID_SendReport_FS (uint8_t* Buf, uint16_t Len)
 {
+  uint8_t report_data[USBD_CUSTOMHID_INREPORT_BUF_SIZE] = {0};
   switchToClass (&hUsbDeviceFS, &comp_dev[HID]);
-  return USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, Buf, Len);
+  memcpy(report_data, Buf, Len);
+  return USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, report_data, sizeof(report_data));
 }
 
 void USBD_COMP_AUDIO_UpdateBuffers(AUDIO_OffsetTypeDef offset)

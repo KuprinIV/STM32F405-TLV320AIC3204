@@ -49,6 +49,7 @@ typedef struct
 	void (*SetStateLedColor)(StateLedColors color);
 	uint8_t (*ScanKeyboard)(void);
 	void (*JoysticksCalibrationModeControl)(uint8_t is_enabled);
+	uint8_t (*IsJoysticksCalibrationModeEnabled)(void);
 	void (*SaveJoysticksCalibrationData)(uint16_t* joystickLeftCD, uint16_t* joystickRightCD);
 }KeyboardState;
 

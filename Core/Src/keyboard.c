@@ -6,6 +6,7 @@
 #include "iir_filter.h"
 #include "fir_filter.h"
 #include "eeprom_emulation.h"
+#include "ds2782.h"
 
 static void setFrontLedColor(uint16_t pulse_length, uint32_t grb_color);
 static void setStateLedColor(StateLedColors color);
@@ -14,6 +15,7 @@ static void StartTimer(void);
 static void calcJoystickCoords(JoystickData* jd, int8_t* x, int8_t* y);
 static uint8_t isJoystickPositionChanged(JoystickData* jd);
 static void joysticksCalibrationModeControl(uint8_t is_enabled);
+static uint8_t isJoysticksCalibrationModeEnabled(void);
 static void saveJoysticksCalibrationData(uint16_t* joystickLeftCD, uint16_t* joystickRightCD);
 static void readJoysticksCalibrationData(JoystickData* jd_left, JoystickData* jd_right);
 
@@ -21,13 +23,23 @@ extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim8;
 extern ADC_HandleTypeDef hadc1;
 
-KeyboardState keyboardState = {0, 0, 0, 0, StartTimer, setFrontLedColor, setStateLedColor, scanKeyboard, joysticksCalibrationModeControl, saveJoysticksCalibrationData};
-KeyboardState *kbState = &keyboardState;;
+KeyboardState keyboardState = {
+		0, 0, 0, 0,
+		StartTimer,
+		setFrontLedColor,
+		setStateLedColor,
+		scanKeyboard,
+		joysticksCalibrationModeControl,
+		isJoysticksCalibrationModeEnabled,
+		saveJoysticksCalibrationData
+};
+
+KeyboardState *kbState = &keyboardState;
 
 JoystickData joystickLeft = {3748, 366, 2056, 3731, 354, 2048, 2056, 2048}; // default values from schematic
 JoystickData joystickRight = {3723, 380, 2046, 3724, 384, 2030, 2046, 2030}; // default values from schematic
 
-volatile uint8_t isJoysticksCalibrationModeEnabled = 0;
+volatile uint8_t IsJoysticksCalibrationModeEnabled = 0;
 
 #ifdef USE_IIR_FILTER
 // init IIR filters data structs
@@ -147,6 +159,7 @@ static uint8_t scanKeyboard(void)
 	uint16_t j1_v_raw = 0;
 	uint16_t j2_h_raw = 0;
 	uint16_t j2_v_raw = 0;
+	static uint8_t charge_prev;
 
 	// prepare report data
 	reportData[0] = 0x01; // report number
@@ -229,7 +242,12 @@ static uint8_t scanKeyboard(void)
 	}
 
 	// get battery charge value
-	reportData[9] = 100; // TODO: add real data
+	reportData[9] = ds2782_drv->ReadActiveRelativeCapacity();
+	if(charge_prev != reportData[9])
+	{
+		charge_prev = reportData[9];
+		needToSendReport = 1;
+	}
 
 	// if joysticks calibration mode enabled, lock this report transmit
 	if(needToSendReport)
@@ -297,7 +315,17 @@ static void StartTimer(void)
  */
 static void joysticksCalibrationModeControl(uint8_t is_enabled)
 {
-	isJoysticksCalibrationModeEnabled = is_enabled;
+	IsJoysticksCalibrationModeEnabled = is_enabled;
+}
+
+/**
+ * @brief Get joysticks calibration mode state
+ * @param: None
+ * @return: 0 - calibration mode disabled, 1 - calibration mode enabled
+ */
+static uint8_t isJoysticksCalibrationModeEnabled(void)
+{
+	return IsJoysticksCalibrationModeEnabled;
 }
 
 /**

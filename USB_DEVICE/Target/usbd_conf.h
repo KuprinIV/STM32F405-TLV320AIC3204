@@ -79,8 +79,9 @@
 #define USBD_AUDIO_FREQ     48000U
 
 #define USBD_CUSTOMHID_OUTREPORT_BUF_SIZE     65U
+#define USBD_CUSTOMHID_INREPORT_BUF_SIZE      33U
 /*---------- -----------*/
-#define USBD_CUSTOM_HID_REPORT_DESC_SIZE      158U
+#define USBD_CUSTOM_HID_REPORT_DESC_SIZE      233U
 
 /****************************************/
 /* #define for FS and HS identification */

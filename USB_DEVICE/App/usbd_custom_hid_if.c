@@ -24,10 +24,7 @@
 
 /* USER CODE BEGIN INCLUDE */
 #include "usbd_comp.h"
-#include "tlv320aic3204.h"
-#include "bt121.h"
-#include "keyboard.h"
-#include "eeprom_emulation.h"
+#include "queue.h"
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -100,9 +97,9 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 	0x09, 0x01,                    // USAGE (Vendor Usage 1)
 	0xa1, 0x01,                    // COLLECTION (Application)
 
-	// keyboard state report (bytes: 0 - report ID (0x01), 1,2 - pressed key codes, 3 - delay MSB, 4 - delay LSB,  5 - joystick left X coordinate (-127...127),
-	// 6 -  joystick left Y coordinate (-127...127), 7 - joystick right X coordinate (-127...127), 8 -  joystick right Y coordinate (-127...127),
-	//	9 - battery charge state (0...100))
+	/** keyboard state report (bytes: 0 - report ID (0x01), 1,2 - pressed key codes, 3 - delay MSB, 4 - delay LSB,  5 - joystick left X coordinate (-127...127),
+	 	 * 6 -  joystick left Y coordinate (-127...127), 7 - joystick right X coordinate (-127...127), 8 -  joystick right Y coordinate (-127...127),
+	 	 *	9 - battery charge state (0...100)) */
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x01,               	   //   REPORT_ID (1)
 	0x95, 0x09,                    //   REPORT_COUNT (9)
@@ -111,7 +108,7 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
 	0x81, 0x82,                    //   INPUT (Data,Var,Abs)
 
-	// get report from device (bytes: 0 - report ID (0x02), 1 - get report command: 0x01 - send report, other - no action)
+	/** get report from device (bytes: 0 - report ID (0x02), 1 - get report command: 0x01 - send report, other - no action) */
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x02,               	   //   REPORT_ID (2)
 	0x95, 0x01,                    //   REPORT_COUNT (1)
@@ -120,8 +117,8 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
 	0x91, 0x82,                    //   INPUT (Data,Var,Abs)
 
-	// audio control report (bytes: 0 - report ID (0x03), 1 - interface direction (0x00 - out, 0x01 - in), 2 - output selection (0x00 - headphones,
-	// 0x01 - loudspeakers), 3 - input selection (0x00 - IN1, 0x01 - IN3))
+	/** audio control report (bytes: 0 - report ID (0x03), 1 - interface direction (0x00 - out, 0x01 - in), 2 - output selection (0x00 - headphones,
+	 	 * 0x01 - loudspeakers), 3 - input selection (0x00 - IN1, 0x01 - IN3)) */
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x03,               	   //   REPORT_ID (3)
 	0x95, 0x03,                    //   REPORT_COUNT (3)
@@ -130,8 +127,8 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
 	0x91, 0x82,                    //   OUTPUT (Data,Var,Abs)
 
-	// LED control report (bytes: 0 - report ID (0x04), 1 - pulse length MSB, 2 - pulse length LSB, 3 - green color byte, 4 - red color byte,
-	// 5 - blue color byte)
+	/** LED control report (bytes: 0 - report ID (0x04), 1 - pulse length MSB, 2 - pulse length LSB, 3 - green color byte, 4 - red color byte,
+	 	 * 5 - blue color byte) */
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x04,               	   //   REPORT_ID (4)
 	0x95, 0x05,                    //   REPORT_COUNT (5)
@@ -140,19 +137,21 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
 	0x91, 0x82,                    //   OUTPUT (Data,Var,Abs)
 
-	// misc control report (bytes: 0 - report ID (0x05), 1 - delay test control (0x00 - stop test, 0x01 - start test),
-	// 2 - BT firmware update command (0x00 - exit from BT boot mode, 0x01 - enter to the BT boot mode),
-	// 3 - enter to DFU boot mode (0x01), 4 - joysticks calibration mode control (0x00 - exit from calibration mode
-	// 0x01 - enter to calibration mode)),
+	/** misc control report (bytes: 0 - report ID (0x05), 1 - delay test control (0x00 - stop test, 0x01 - start test),
+	 	 * 2 - BT firmware update command (0x00 - exit from BT boot mode, 0x01 - enter to the BT boot mode),
+	 	 * 3 - enter to DFU boot mode (0x01), 4 - joysticks calibration mode control (0x00 - exit from calibration mode,
+		 * 0x01 - enter to calibration mode), 5 - BQ25601 charger enabled state (0 - charger disabled, 1 - charger enabled),
+		 * 6 - DS2782 EEPROM block 1 lock (1 - lock memory block), 7 - read EEPROM block 1 lock status (1 - read),
+		 * 8 - read BQ25601 & DS2782 status data) */
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x05,               	   //   REPORT_ID (5)
-	0x95, 0x04,                    //   REPORT_COUNT (4)
+	0x95, 0x08,                    //   REPORT_COUNT (8)
 	0x75, 0x08,                    //   REPORT_SIZE (8)
 	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
 	0x91, 0x82,                    //   OUTPUT (Data,Var,Abs)
 
-	// BT firmware data report (bytes: 0 - report ID (0x06), 1...64 - BT firmware data)
+	/** BT firmware data report (bytes: 0 - report ID (0x06), 1...64 - BT firmware data) */
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x06,               	   //   REPORT_ID (6)
 	0x95, 0x40,                    //   REPORT_COUNT (64)
@@ -161,7 +160,7 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
 	0x91, 0x82,                    //   OUTPUT (Data,Var,Abs)
 
-	// BT firmware packet write status (bytes: 0 - report ID (0x07), 1 - firmware packet transfer data state (0x00 - success, other - error))
+	/** BT firmware packet write status (bytes: 0 - report ID (0x07), 1 - firmware packet transfer data state (0x00 - success, other - error)) */
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x07,               	   //   REPORT_ID (7)
 	0x95, 0x01,                    //   REPORT_COUNT (1)
@@ -170,11 +169,11 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
 	0x81, 0x82,                    //   INPUT (Data,Var,Abs)
 
-	// joysticks calibration data (bytes: 0 - report ID (0x08); 1,2 - joystick left H-axis max value; 3,4 - joystick left H-axis min value;
-	// 5,6 - joystick left H-axis zero value; 7,8 - joystick left Y-axis max value; 9,10 - joystick left Y-axis min value;
-	// 11,12 - joystick left Y-axis zero value; 13,14 - joystick right H-axis max value; 15,16 - joystick right H-axis min value;
-	// 17,18 - joystick right H-axis zero value; 19,20 - joystick right Y-axis max value; 21,22 - joystick right Y-axis min value;
-	// 23,24 - joystick right Y-axis zero value)
+	/** joysticks calibration data (bytes: 0 - report ID (0x08); 1,2 - joystick left H-axis max value; 3,4 - joystick left H-axis min value;
+	 	* 5,6 - joystick left H-axis zero value; 7,8 - joystick left Y-axis max value; 9,10 - joystick left Y-axis min value;
+		* 11,12 - joystick left Y-axis zero value; 13,14 - joystick right H-axis max value; 15,16 - joystick right H-axis min value;
+		* 17,18 - joystick right H-axis zero value; 19,20 - joystick right Y-axis max value; 21,22 - joystick right Y-axis min value;
+		* 23,24 - joystick right Y-axis zero value) */
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x08,               	   //   REPORT_ID (8)
 	0x95, 0x18,                    //   REPORT_COUNT (24)
@@ -183,9 +182,9 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
 	0x91, 0x82,                    //   OUTPUT (Data,Var,Abs)
 
-	// joysticks position raw data (bytes: 0 - report ID (0x09), 1 - joystick left H-axis pos MSB, 2 - joystick left H-axis pos LSB,
-	// 3 - joystick left Y-axis pos MSB, 4 - joystick left Y-axis pos LSB, 5 - joystick right H-axis pos MSB, 6 - joystick right H-axis pos LSB,
-	// 7 - joystick right Y-axis pos MSB, 8 - joystick right Y-axis pos LSB))
+	/** joysticks position raw data (bytes: 0 - report ID (0x09), 1 - joystick left H-axis pos MSB, 2 - joystick left H-axis pos LSB,
+	 	 * 3 - joystick left Y-axis pos MSB, 4 - joystick left Y-axis pos LSB, 5 - joystick right H-axis pos MSB, 6 - joystick right H-axis pos LSB,
+	 	 * 7 - joystick right Y-axis pos MSB, 8 - joystick right Y-axis pos LSB)) */
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x09,               	   //   REPORT_ID (9)
 	0x95, 0x08,                    //   REPORT_COUNT (8)
@@ -194,10 +193,56 @@ __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DES
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
 	0x81, 0x82,                    //   INPUT (Data,Var,Abs)
 
-	// firmware version string (format like this "0.0" - by bytes {'0', '.', '0', '\0'})
+	/** firmware version string (format like this "0.0" - by bytes {'0', '.', '0', '\0'}) */
 	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
 	0x85, 0x0A,               	   //   REPORT_ID (10)
 	0x95, 0x08,                    //   REPORT_COUNT (8)
+	0x75, 0x08,                    //   REPORT_SIZE (8)
+	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
+	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
+	0x81, 0x82,                    //   INPUT (Data,Var,Abs)
+
+	/** read DS2782 EEPROM block 1 lock status: (bytes: 0 - report ID (0x0B), 1 - lock state (0 - isn't locked, 1 - is locked)) */
+	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
+	0x85, 0x0B,               	   //   REPORT_ID (11)
+	0x95, 0x01,                    //   REPORT_COUNT (1)
+	0x75, 0x08,                    //   REPORT_SIZE (8)
+	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
+	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
+	0x81, 0x82,                    //   INPUT (Data,Var,Abs)
+
+	/** read DS2782 EEPROM block 1 data: (bytes: 0 - report ID (0x0C), 1 - start address, 2 - data length) */
+	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
+	0x85, 0x0C,               	   //   REPORT_ID (12)
+	0x95, 0x02,                    //   REPORT_COUNT (2)
+	0x75, 0x08,                    //   REPORT_SIZE (8)
+	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
+	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
+	0x91, 0x82,                    //   OUTPUT (Data,Var,Abs)
+
+	/** send DS2782 EEPROM block 1 data: (bytes: 0 - report ID (0x0D), 1...32 - EEPROM block 1 data) */
+	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
+	0x85, 0x0D,               	   //   REPORT_ID (13)
+	0x95, 0x20,                    //   REPORT_COUNT (32)
+	0x75, 0x08,                    //   REPORT_SIZE (8)
+	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
+	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
+	0x81, 0x82,                    //   INPUT (Data,Var,Abs)
+
+	/** write DS2782 EEPROM block 1 data: (bytes: 0 - report ID (0x0E), 1 - start address, 2 - data length,  3...34 - EEPROM block 1 data) */
+	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
+	0x85, 0x0E,               	   //   REPORT_ID (14)
+	0x95, 0x22,                    //   REPORT_COUNT (22)
+	0x75, 0x08,                    //   REPORT_SIZE (8)
+	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
+	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
+	0x91, 0x82,                    //   OUTPUT (Data,Var,Abs)
+
+	/** read DS2782 & BQ25601 status data: (bytes: 0 - report ID (0x0F), 1 - DS2782 status register value, 2...5 - BQ25601 status
+	 *  data, 6...10 - BQ25601 fault data) */
+	0x09, 0x01,                    //   USAGE (Vendor Usage 1)
+	0x85, 0x0F,               	   //   REPORT_ID (15)
+	0x95, 0x0A,                    //   REPORT_COUNT (10)
 	0x75, 0x08,                    //   REPORT_SIZE (8)
 	0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
 	0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
@@ -286,68 +331,9 @@ static int8_t CUSTOM_HID_DeInit_FS(void)
 static int8_t CUSTOM_HID_OutEvent_FS(uint8_t report_num)
 {
   /* USER CODE BEGIN 6 */
-	uint8_t inputData[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE]= {0};
-	uint8_t fw_version_report[10] = {0};
-	uint16_t pulse_length = 0;
-	uint32_t color_grb = 0;
-	uint16_t joystickLeftCalibData[6] = {0};
-	uint16_t joystickRightCalibData[6] = {0};
-
 	USBD_CUSTOM_HID_HandleTypeDef  *hhid = (USBD_CUSTOM_HID_HandleTypeDef*)hUsbDeviceFS.pClassData;
-	memcpy(inputData, hhid->Report_buf, USBD_CUSTOMHID_OUTREPORT_BUF_SIZE);
-
-	switch(report_num)
-	{
-		case 2:
-			fw_version_report[0] = 0x0A; // report ID
-			eeprom_drv->GetFwVersion(&fw_version_report[1], 9);
-			USBD_COMP_HID_SendReport_FS(fw_version_report, sizeof(fw_version_report));
-			break;
-
-		case 3:
-			tlv320aic3204_drv->SelectOutput(inputData[2] & 0x01); // select codec's outputs
-			tlv320aic3204_drv->SelectInput(inputData[3] & 0x01); // select codec's input
-			break;
-
-		case 4:
-			pulse_length = (inputData[1]<<8)|inputData[2]; // LED pulse length in ms
-			color_grb = (inputData[3]<<16)|(inputData[4]<<8)|inputData[5]; // LED color
-			kbState->SetFrontLedColor(pulse_length, color_grb); // set front LED color
-			break;
-		
-		case 5:
-			kbState->isDelayMeasureTestEnabled = (inputData[1] & 0x01); // delay test control
-			// BT boot mode control
-			if((inputData[2] & 0x01) == 1)
-			{
-				bt121_fw_update->startBTBootMode = 1;
-			}
-			else
-			{
-				bt121_fw_update->stopBTBootMode = 1;
-			}
-			// enter into DFU mode
-			kbState->isDfuModeEnabled = (inputData[3] & 0x01);
-			// joysticks calibration mode control
-			kbState->JoysticksCalibrationModeControl(inputData[4] & 0x01);
-			break;
-
-		case 6:
-			bt121_fw_update->isBtFwUpdateStarted = 1;
-			memcpy(bt121_fw_update->btFwPacket64b, &inputData[1], USBD_CUSTOMHID_OUTREPORT_BUF_SIZE-1);
-			bt121_fw_update->isBtReadyToReceiveNextPacket = 0;
-			break;
-
-		case 8:
-			memcpy(joystickLeftCalibData, &inputData[1], sizeof(joystickLeftCalibData));
-			memcpy(joystickRightCalibData, &inputData[sizeof(joystickLeftCalibData)+1], sizeof(joystickRightCalibData));
-			kbState->SaveJoysticksCalibrationData(joystickLeftCalibData, joystickRightCalibData);
-			break;
-
-		default:
-			break;
-	}
-  return (USBD_OK);
+	commands_queue->Insert(hhid->Report_buf);
+	return (USBD_OK);
   /* USER CODE END 6 */
 }
 

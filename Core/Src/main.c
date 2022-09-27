@@ -28,6 +28,9 @@
 #include "bt121.h"
 #include "keyboard.h"
 #include "eeprom_emulation.h"
+#include "ds2782.h"
+#include "bq25601.h"
+#include "queue.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,7 +50,7 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
-
+I2C_HandleTypeDef hi2c2;
 TIM_HandleTypeDef htim4;
 TIM_HandleTypeDef htim8;
 DMA_HandleTypeDef hdma_tim4_ch1;
@@ -62,11 +65,14 @@ UART_HandleTypeDef huart3;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
+static void MX_I2C2_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_TIM8_Init(void);
 /* USER CODE BEGIN PFP */
 static void MX_Timers_Init(void);
+static void checkPowerButton(void);
+static void processHostCommands(uint8_t* report_data);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -105,6 +111,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
+  MX_I2C2_Init();
 
   tlv320aic3204_drv->PowerOnOff(1);
   tlv320aic3204_drv->Reset();
@@ -117,6 +124,9 @@ int main(void)
   /* USER CODE BEGIN 2 */
   bt121_drv->Init();
   eeprom_drv->Init();
+  bq25601_drv->SetChargerEnabled(1);
+  bq25601_drv->Init();
+  ds2782_drv->Init();
   initKeyboardState();
   /* USER CODE END 2 */
 
@@ -130,12 +140,27 @@ int main(void)
 	  if(kbState->isScanningTimerUpdated)
 	  {
 		  kbState->isScanningTimerUpdated = 0;
-		  // if any new keyboard action was made, reset BT sleep mode counter
+		  // check power button state
+		  checkPowerButton();
+
+		  // if active empty state and no charge input make power off
+		  if((ds2782_drv->ReadStatus() & ACTIVE_EMPTY_FLAG) && (PG_GPIO_Port->IDR & PG_Pin))
+		  {
+			  bq25601_drv->PowerOff();
+			  HAL_NVIC_SystemReset();
+		  }
+
+		  // if any new keyboard action was made, reset BT sleep mode counter and send report data
 		  if(kbState->ScanKeyboard())
 		  {
 			  btSleepCounter = 0;
 			  bt121_drv->SetEnabled(1); // enable BT
 		  }
+		  else if(!commands_queue->IsEmpty) // commands queue isn't empty, process commands
+		  {
+			  processHostCommands(commands_queue->Poll());
+		  }
+
 		  // check BT module to sleep
 		  if(btSleepCounter < BT_SLEEP_DELAY)
 		  {
@@ -383,6 +408,24 @@ static void MX_DMA_Init(void)
 
 }
 
+static void MX_I2C2_Init(void)
+{
+  /* I2C2 parameter configuration*/
+  hi2c2.Instance = I2C2;
+  hi2c2.Init.ClockSpeed = 400000;
+  hi2c2.Init.DutyCycle = I2C_DUTYCYCLE_16_9;
+  hi2c2.Init.OwnAddress1 = 0;
+  hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c2.Init.OwnAddress2 = 0;
+  hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c2) != HAL_OK)
+  {
+	Error_Handler();
+  }
+}
+
 /**
   * @brief GPIO Initialization Function
   * @param None
@@ -457,6 +500,35 @@ static void MX_GPIO_Init(void)
    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
    GPIO_InitStruct.Alternate = GPIO_AF2_TIM4;
    HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
+
+   /*Configure GPIO pin : PWR_BTN_Pin */
+   GPIO_InitStruct.Pin = PWR_BTN_Pin;
+   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+   GPIO_InitStruct.Pull = GPIO_NOPULL;
+   HAL_GPIO_Init(PWR_BTN_GPIO_Port, &GPIO_InitStruct);
+
+   /*Configure GPIO pins : GHGEN_Pin */
+   GPIO_InitStruct.Pin = LED_Pin|GHGEN_Pin;
+   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+   GPIO_InitStruct.Pull = GPIO_NOPULL;
+   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+   HAL_GPIO_Init(GHGEN_GPIO_Port, &GPIO_InitStruct);
+
+   /*Configure GPIO pin : INT_Pin */
+   GPIO_InitStruct.Pin = INT_Pin;
+   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+   GPIO_InitStruct.Pull = GPIO_NOPULL;
+   HAL_GPIO_Init(INT_GPIO_Port, &GPIO_InitStruct);
+
+   /*Configure GPIO pin : PG_Pin */
+   GPIO_InitStruct.Pin = PG_Pin;
+   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+   GPIO_InitStruct.Pull = GPIO_PULLUP;
+   HAL_GPIO_Init(PG_GPIO_Port, &GPIO_InitStruct);
+
+   /* EXTI interrupt init*/
+   HAL_NVIC_SetPriority(EXTI4_IRQn, 1, 0);
+   HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 }
 
 /* USER CODE BEGIN 4 */
@@ -525,6 +597,140 @@ static void MX_Timers_Init(void)
 	// configure interrupt
 	HAL_NVIC_SetPriority(TIM7_IRQn, 1, 0);
 	HAL_NVIC_EnableIRQ(TIM7_IRQn);
+}
+
+/**
+ * @brief Check power button state. If button was pressed more than 1 s make power off
+ * @param: None
+ * @return: None
+ */
+static void checkPowerButton(void)
+{
+  static uint8_t powerOffCntr;
+  static uint8_t isPwrBtnPressed;
+
+  if((PWR_BTN_GPIO_Port->IDR & PWR_BTN_Pin) == 0 && !isPwrBtnPressed)
+  {
+	  isPwrBtnPressed = 1;
+	  powerOffCntr++;
+  }
+  else if((PWR_BTN_GPIO_Port->IDR & PWR_BTN_Pin) == 0 && isPwrBtnPressed)
+  {
+	  if(powerOffCntr++ >= 100)
+	  {
+		  powerOffCntr = 0;
+		  bq25601_drv->PowerOff();
+		  HAL_NVIC_SystemReset();
+	  }
+  }
+  else if((PWR_BTN_GPIO_Port->IDR & PWR_BTN_Pin) && isPwrBtnPressed)
+  {
+	  powerOffCntr = 0;
+	  isPwrBtnPressed = 0;
+  }
+}
+
+/**
+ * @brief Process commands, received via HID reports from Host
+ * @param: report_data - HID report data with command
+ * @return: None
+ */
+static void processHostCommands(uint8_t* report_data)
+{
+	BQ25601_Status bq25601_status;
+	BQ25601_FaultType bq25601_faults;
+	uint8_t outputData[USBD_CUSTOMHID_INREPORT_BUF_SIZE]= {0};
+	uint8_t fw_version_report[10] = {0};
+	uint16_t pulse_length = 0;
+	uint32_t color_grb = 0;
+	uint16_t joystickLeftCalibData[6] = {0};
+	uint16_t joystickRightCalibData[6] = {0};
+
+	switch(report_data[0])
+	{
+		case 2: // send firmware version
+			fw_version_report[0] = 0x0A; // report ID
+			eeprom_drv->GetFwVersion(&fw_version_report[1], 9);
+			USBD_COMP_HID_SendReport_FS(fw_version_report, sizeof(fw_version_report));
+			break;
+
+		case 3: // audio control commands
+			tlv320aic3204_drv->SelectOutput(report_data[2] & 0x01); // select codec's outputs
+			break;
+
+		case 4: // set front LED parameters
+			pulse_length = (report_data[1]<<8)|report_data[2]; // LED pulse length in ms
+			color_grb = (report_data[3]<<16)|(report_data[4]<<8)|report_data[5]; // LED color
+			kbState->SetFrontLedColor(pulse_length, color_grb); // set front LED color
+			break;
+
+		case 5: // handle commands from misc report
+			kbState->isDelayMeasureTestEnabled = (report_data[1] & 0x01); // delay test control
+			// BT boot mode control
+			if((report_data[2] & 0x01) == 1)
+			{
+				bt121_fw_update->startBTBootMode = 1;
+			}
+			else
+			{
+				bt121_fw_update->stopBTBootMode = 1;
+			}
+			// enter into DFU mode
+			kbState->isDfuModeEnabled = (report_data[3] & 0x01);
+			// joysticks calibration mode control
+			kbState->JoysticksCalibrationModeControl(report_data[4] & 0x01);
+			// set BQ25601 charger enabled state
+			bq25601_drv->SetChargerEnabled(report_data[5] & 0x01);
+			// check lock DS2782 EEPROM block 1 command
+			if((report_data[6] & 0x01) == 1)
+			{
+				ds2782_drv->LockEepromBlock(1);
+			}
+			// get DS2782 EEPROM block 1 lock status
+			if((report_data[7] & 0x01) == 1)
+			{
+				outputData[0] = 0x0B;
+				outputData[1] = ds2782_drv->IsEepromBlockLocked(1);
+				USBD_COMP_HID_SendReport_FS(outputData, 2);
+			}
+			// get DS2782 and BQ25601 status
+			if((report_data[8] & 0x01) == 1)
+			{
+				outputData[0] = 0x0F;
+				outputData[1] = ds2782_drv->ReadStatus(); // read DS2782 status
+				bq25601_drv->GetChargerState(&bq25601_status); // read BQ25601 status data
+				bq25601_drv->GetChargerFault(&bq25601_faults); // read BQ25601 faults data
+				memcpy(outputData+2, &bq25601_status, sizeof(bq25601_status));
+				memcpy(outputData+6, &bq25601_faults, sizeof(bq25601_faults));
+				USBD_COMP_HID_SendReport_FS(outputData, 11);
+			}
+			break;
+
+		case 6: // receive BT firmware data packet
+			bt121_fw_update->isBtFwUpdateStarted = 1;
+			memcpy(bt121_fw_update->btFwPacket64b, &report_data[1], USBD_CUSTOMHID_OUTREPORT_BUF_SIZE-1);
+			bt121_fw_update->isBtReadyToReceiveNextPacket = 0;
+			break;
+
+		case 8: // save joysticks calibration data
+			memcpy(joystickLeftCalibData, &report_data[1], sizeof(joystickLeftCalibData));
+			memcpy(joystickRightCalibData, &report_data[sizeof(joystickLeftCalibData)+1], sizeof(joystickRightCalibData));
+			kbState->SaveJoysticksCalibrationData(joystickLeftCalibData, joystickRightCalibData);
+			break;
+
+		case 12: // read EEPROM block 1 command
+			outputData[0] = 0x0D;
+			ds2782_drv->ReadEepromBlock1(report_data[1], outputData+1, report_data[2]);
+			USBD_COMP_HID_SendReport_FS(outputData, 33);
+			break;
+
+		case 14: // write DS2782 EEPROM block 1 data
+			ds2782_drv->WriteEepromBlock1(report_data[1], report_data+3, report_data[2]);
+			break;
+
+		default:
+			break;
+	}
 }
 /* USER CODE END 4 */
 
