@@ -11,6 +11,7 @@ uint8_t test = 0;
 
 static void writeRegister(uint8_t addr, uint8_t value);
 static uint8_t readRegister(uint8_t addr);
+static void loudspeaker_out_amplifier_ctrl(uint8_t is_enabled);
 
 /**
  * @brief
@@ -163,6 +164,26 @@ static uint8_t readRegister(uint8_t addr)
 	return rxData;
 }
 
+
+/**
+ * @brief Loudspeakers amplifier control
+ * @param: is_enabled - 0 - amplifier off, 1 - amplifier on
+ */
+static void loudspeaker_out_amplifier_ctrl(uint8_t is_enabled)
+{
+	if(is_enabled) // enable out amplifier with 50 ms delay to minimize audible click on loudspeakers
+	{
+		TIM3->ARR = 49;
+		TIM3->EGR |= TIM_EGR_UG; // call update event for setting actual ARR register value
+		TIM3->CR1 |= TIM_CR1_CEN; // enable timer
+		LS_EN_GPIO_Port->ODR |= LS_EN_Pin;
+	}
+	else
+	{
+		LS_EN_GPIO_Port->ODR &= ~LS_EN_Pin; // disable out amplifier immediately
+	}
+}
+
 static void tlv320aic3204_PowerOnOff(uint8_t is_powered)
 {
 
@@ -286,7 +307,7 @@ static void tlv320aic3204_CodecInit(void)
 	// Unmute the DAC digital volume control
 	writeRegister(0x40, 0x00);
 	// enable out amplifier for loudspeakers
-	LS_EN_GPIO_Port->ODR |= LS_EN_Pin;
+	loudspeaker_out_amplifier_ctrl(1);
 
 //codec ADC init
 	// Initialize to Page 0
@@ -469,15 +490,8 @@ static void tlv320aic3204_muteControl(uint8_t is_enabled)
 			reg_value = readRegister(0x13) & 0xBF; // reset mute bit
 			reg_value |= (is_enabled << 6); // set value for mute bit
 			writeRegister(0x13, reg_value);
-
-			if(is_enabled)
-			{
-				LS_EN_GPIO_Port->ODR &= ~LS_EN_Pin; // disable out amplifier
-			}
-			else
-			{
-				LS_EN_GPIO_Port->ODR |= LS_EN_Pin; // enable out amplifier
-			}
+			// loudspeaker out amplifier control
+			loudspeaker_out_amplifier_ctrl(!is_enabled);
 			break;
 	}
 }
@@ -581,4 +595,15 @@ static uint16_t tlv320aic3204_getInRemainingDataSize()
 static void tlv320aic3204_StartDataTransfer(uint16_t* tx_data, uint16_t* rx_data, uint16_t size)
 {
 	HAL_I2SEx_TransmitReceive_DMA(&hi2s2, tx_data, rx_data, size);
+}
+
+void TIM3_IRQHandler(void)
+{
+	if(TIM3->SR & TIM_SR_UIF)
+	{
+		TIM3->SR &= ~TIM_SR_UIF; // reset flag
+		TIM3->CR1 &= ~TIM_CR1_CEN; // stop timer
+		// enable loudspeaker output amplifier
+		LS_EN_GPIO_Port->ODR |= LS_EN_Pin;
+	}
 }

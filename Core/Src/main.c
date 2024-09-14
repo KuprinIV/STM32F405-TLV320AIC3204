@@ -358,6 +358,15 @@ static void MX_Timers_Init(void)
 	TIM2->OR |= TIM_OR_ITR1_RMP_1; // OTG FS SOF is connected to the TIM2_ITR1 input
 	TIM2->CCER |= TIM_CCER_CC1E; // Capture enabled
 	TIM2->CR1 |= TIM_CR1_CEN; // Counter enabled
+
+	// loudspeaker amplifier enable delay timer
+	RCC->APB1ENR |= RCC_APB1ENR_TIM3EN; // enable TIM3 clock
+	TIM3->PSC = 47999; // divide internal clock
+	TIM3->DIER |= TIM_DIER_UIE; // update interrupt enable
+	TIM3->CR1 |= TIM_CR1_URS; // only counter overflow generates an update interrupt if enabled
+	// configure interrupt
+	HAL_NVIC_SetPriority(TIM3_IRQn, 1, 0);
+	HAL_NVIC_EnableIRQ(TIM3_IRQn);
 }
 
 static uint8_t IsInRange(uint16_t value, uint16_t min, uint16_t max)
